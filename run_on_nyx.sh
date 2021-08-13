@@ -48,6 +48,10 @@ cp -r ${SLURM_SUBMIT_DIR} ${SCRATCH_DIRECTORY}
 # This is where the actual work is done. In this case, the script only waits.
 # The time command is optional, but it may give you a hint on how long the
 # command worked
+
+conda activate base
+bash
+
 python3 ${SCRATCH_DIRECTORY}/run_experiments.py
 #sleep 10
 
