@@ -36,6 +36,8 @@
 #SBATCH --mail-user=julianstastny@gmail.com
 # You may not place any commands before the last SBATCH directive
 
+singularity shell numpyro_latest.sif
+
 # Define and create a unique scratch directory for this job
 SCRATCH_DIRECTORY=/ptmp/${USER}/${SLURM_JOBID}
 mkdir -p ${SCRATCH_DIRECTORY}
