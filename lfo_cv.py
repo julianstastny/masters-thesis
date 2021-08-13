@@ -2,7 +2,7 @@ import arviz as az
 import numpyro
 import numpyro.distributions as dist
 import jax.random as random
-from numpyro.infer import MCMC, NUTS
+from numpyro.infer import MCMC, NUTS, DiscreteHMCGibbs
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
@@ -118,7 +118,7 @@ class NumPyroSamplingWrapper(az.SamplingWrapper):
         self.rng_key, subkey = random.split(self.rng_key)
         mcmc = MCMC(**self.sample_kwargs)
         mcmc.run(subkey, **modified_observed_data)
-        mcmc.print_summary(exclude_deterministic=False)
+        mcmc.print_summary(exclude_deterministic=True)
         return mcmc
 
     def get_inference_data(self, mcmc):
@@ -134,9 +134,12 @@ class OnPolicyModelWrapper(NumPyroSamplingWrapper):
         X_data = self.idata_orig.constant_data["X"].values
         stage_data = self.idata_orig.constant_data["stage"].values
         ydata = self.idata_orig.observed_data["y"].values
-        mask = np.expand_dims(np.isin(np.arange(len(X_data)), idx, invert=True), 0)
-        print(mask.shape)
-        print(ydata.shape)
+#         mask = np.expand_dims(np.isin(np.arange(len(X_data)), idx, invert=True), 1)
+        mask = np.isin(np.arange(len(X_data)), idx, invert=True)
+#         print(idx)
+#         print(mask)
+#         print(mask.shape)
+#         print(ydata.shape)
 #         data__i = {"X": X_data[~mask], "y": ydata[~mask], "stage": stage_data[~mask]}
 #         data_ex = {"X": X_data[mask], "y": ydata[mask], "stage": stage_data[mask]}
 #         data_ex = {"X": X_data, "y": ydata, "stage": stage_data}
@@ -155,11 +158,17 @@ def compute_reloo(model, mcmc, **data_kwargs):
     idata_kwargs = {"constant_data": data_kwargs}
     idata = az.from_numpyro(mcmc, **idata_kwargs)
     sample_kwargs = dict(
-        sampler=NUTS(model), 
+        sampler=DiscreteHMCGibbs(NUTS(model), modified=True), 
         num_warmup=1000, 
         num_samples=1000, 
         num_chains=1, 
-    )
+    )    
+#     sample_kwargs = dict(
+#         sampler=NUTS(model), 
+#         num_warmup=1000, 
+#         num_samples=1000, 
+#         num_chains=1, 
+#     )
     numpyro_wrapper = OnPolicyModelWrapper(
         mcmc, 
         rng_key=random.PRNGKey(5),

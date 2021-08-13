@@ -19,7 +19,7 @@ import numpyro
 import numpyro.infer
 # import render
 from numpyro import distributions as dist
-from numpyro.infer import MCMC, NUTS
+from numpyro.infer import MCMC, NUTS, DiscreteHMCGibbs
 from numpyro.handlers import reparam
 from numpyro.infer.reparam import LocScaleReparam, TransformReparam
 from numpyro.contrib.control_flow import scan
@@ -32,10 +32,13 @@ import plotly
 import plotly.express as px
 
 
-# from models import latent_utility_model_nostim, latent_utility_model_stim, regularized_random_walk_model, constant_model, drift_perseverance_model#, generate_model
 from models import fit
 from models import generate_onpolicy_model
 
+import os
+
+if not os.path.exists("output/pareto_ks"):
+    os.mkdir("output/pareto_ks")
 # %%
 with open('ApAvDataset_behavior.pkl', 'rb') as f:
     dataset = pickle.load(f)
@@ -147,6 +150,7 @@ for i, result in enumerate(all_results_ema_model):
     
     mcmc = list(result.values())[0]
     idata = az.from_numpyro(mcmc)
+    az.to_netcdf(f'output/idatas/drift{drift_scale}_rep{repetition_kernel_scale}_stimIE{stimulation_immediate_scale}_RW{rw_scale}_session{i}.nc')
     mean_pred = np.array(np.mean(idata.posterior.probs_with_lapse, axis=(0,1)))
     std_pred = np.array(np.std(idata.posterior.probs_with_lapse, axis=(0,1)))
 #     loo = az.loo(idata, pointwise=True)
@@ -162,4 +166,6 @@ for i, result in enumerate(all_results_ema_model):
         y = np.ones(len(loo.pareto_k))*0.7,
         mode='lines'
     ))
-    fig.show()
+#     fig.show()
+
+    fig.write_image(f'output/pareto_ks/drift{drift_scale}_rep{repetition_kernel_scale}_stimIE{stimulation_immediate_scale}_RW{rw_scale}_session{i}.svg')
