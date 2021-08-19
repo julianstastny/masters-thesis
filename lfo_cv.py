@@ -135,7 +135,7 @@ class OnPolicyModelWrapper(NumPyroSamplingWrapper):
         stage_data = self.idata_orig.constant_data["stage"].values
         ydata = self.idata_orig.observed_data["y"].values
 #         mask = np.expand_dims(np.isin(np.arange(len(X_data)), idx, invert=True), 1)
-        mask = np.isin(np.arange(len(X_data)), idx, invert=True)
+#         mask = np.isin(np.arange(len(X_data)), idx, invert=True)
 #         print(idx)
 #         print(mask)
 #         print(mask.shape)
@@ -145,13 +145,13 @@ class OnPolicyModelWrapper(NumPyroSamplingWrapper):
 #         data_ex = {"X": X_data, "y": ydata, "stage": stage_data}
 #         print(data__i['y'].shape)
 #         print(data_ex['y'].shape)
-#         ydata_i = ydata.copy()
+        ydata_i = ydata.copy()
 # # #         print(y_data_i)
 # # #         print(idx)
-#         ydata_i[idx] = -1
+        ydata_i[idx] = -1
             
-        data__i = {"X": X_data, "y": ydata, "stage": stage_data, "obs_mask": mask}
-        data_ex = {"idx": idx, "data": {"y": ydata, "X": X_data, "stage": stage_data}}
+        data__i = {"X": X_data, "y": ydata, "stage": stage_data}
+        data_ex = {"idx": idx, "data": {"y": ydata_i, "X": X_data, "stage": stage_data}}
         return data__i, data_ex
     
 def compute_reloo(model, mcmc, **data_kwargs):
@@ -161,7 +161,7 @@ def compute_reloo(model, mcmc, **data_kwargs):
         sampler=DiscreteHMCGibbs(NUTS(model), modified=True), 
         num_warmup=1000, 
         num_samples=1000, 
-        num_chains=1, 
+        num_chains=4, 
     )    
 #     sample_kwargs = dict(
 #         sampler=NUTS(model), 
