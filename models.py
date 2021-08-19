@@ -324,6 +324,7 @@ config = {
 def generate_onpolicy_model(config):
     assert not (config['saturating_ema'] and config['poisson_cdf_diminishing_perseverance'])
     switch_scale = config['switch_scale']
+    saturating_ema = int(config['saturating_ema'])
 
     def numpyro_config_sample(name, target_shape):
         return _numpyro_config_sample(name, config, target_shape)
