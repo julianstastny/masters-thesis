@@ -36,7 +36,10 @@
 #SBATCH --mail-user=julianstastny@gmail.com
 # You may not place any commands before the last SBATCH directive
 
-singularity shell numpyro_latest.sif
+module add singularity
+export SINGULARITY_BIND="/run,/ptmp,/scratch,/tmp,/opt/ohpc,${HOME}"
+singularity shell /home/jstastny/numpyro_latest.sif
+
 
 # Define and create a unique scratch directory for this job
 SCRATCH_DIRECTORY=/ptmp/${USER}/${SLURM_JOBID}
@@ -51,23 +54,17 @@ cp -r ${SLURM_SUBMIT_DIR} ${SCRATCH_DIRECTORY}
 # The time command is optional, but it may give you a hint on how long the
 # command worked
 
-conda activate base
-bash
+# conda activate base
+eval "$(conda shell.bash hook)"
 
+conda activate base
+conda list
 python3 ${SCRATCH_DIRECTORY}/run_experiments.py
 #sleep 10
 
 # After the job is done we copy our output back to $SLURM_SUBMIT_DIR
 cp -r ${SCRATCH_DIRECTORY}/output ${SLURM_SUBMIT_DIR}
 
-# In addition to the copied files, you will also find a file called
-# slurm-1234.out in the submit directory. This file will contain all output that
-# was produced during runtime, i.e. stdout and stderr.
-
-# After everything is saved to the home directory, delete the work directory to
-# save space on /ptmp
-cd ${SLURM_SUBMIT_DIR}
-rm -rf ${SCRATCH_DIRECTORY}
 
 # Finish the script
 exit 0
