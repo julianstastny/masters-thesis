@@ -60,8 +60,6 @@ python3 ${SCRATCH_DIRECTORY}/run_experiments.py
 # After the job is done we copy our output back to $SLURM_SUBMIT_DIR
 cp -r ${SCRATCH_DIRECTORY}/output ${SLURM_SUBMIT_DIR}
 
-mv ${SLURM_SUBMIT_DIR}/slurm-1234.out ${SLURM_SUBMIT_DIR}/output
-
 # In addition to the copied files, you will also find a file called
 # slurm-1234.out in the submit directory. This file will contain all output that
 # was produced during runtime, i.e. stdout and stderr.

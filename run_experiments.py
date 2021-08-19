@@ -38,11 +38,7 @@ from lfo_cv import compute_reloo
 
 import os
 
-if not os.path.exists("output/pareto_ks"):
-    os.makedirs("output/pareto_ks")
-# %%
-if not os.path.exists("output/idatas"):
-    os.makedirs("output/idatas")
+
 with open('ApAvDataset_behavior.pkl', 'rb') as f:
     dataset = pickle.load(f)
 
@@ -131,46 +127,116 @@ print(y.shape)
     
 
 
-drift_scale = 0.1
-repetition_kernel_scale = 10
-stimulation_immediate_scale = 1
-rw_scale = 0
+base_config = {
+    "volatility": {
+        "shape": (3,),
+        "dist_type": dist.HalfNormal,
+        "params": {"scale": 0.1},
+    },
+    "repetition_kernel": {
+        "shape": (3, 2),
+        "dist_type": dist.Normal,
+        "params": {"loc": 0.0, "scale": 10},
+    },
+    "drift": {
+        "shape": (3, 3),
+        "dist_type": dist.Normal,
+        "params": {"loc": 0.0, "scale": 0.1},
+    },
+    "stimulation_immediate": {
+        "shape": (3, 3),
+        "dist_type": dist.Normal,
+        "params": {"scale": 10},
+    },
+    "perseverance_growth_rate": {
+        "shape": (3, 2),
+        "dist_type": dist.HalfNormal,
+        "params": {"scale": 10},
+    },
+    "forget_rate": {
+        "shape": (2,),
+        "dist_type": dist.Beta,
+        "params": {"concentration0": 1.0, "concentration1": 1.0},
+    },
+    "lapse_prob": {
+        "shape": (3,),
+        "dist_type": dist.Beta,
+        "params": {"concentration0": 1.0, "concentration1": 1.0},
+    },
+    "approach_given_lapse": {
+        "shape": (3,),
+        "dist_type": dist.Beta,
+        "params": {"concentration0": 1.0, "concentration1": 1.0},
+    },
+    "mean_reversion": {
+        "shape": (3,),
+        "dist_type": dist.Uniform,
+        "params": {"low": 0.0, "high": 1.0},
+    },
+    "switch_scale": 0.1,
+    "saturating_ema": False,
+    "poisson_cdf_diminishing_perseverance": True
+}
 
 
-all_results_ema_model = []
-for i, (y_, y_prev_indicator_, stage_, X_) in enumerate(zip(y_sep, y_prev_indicator_sep, stage_sep, X_sep)):
-#     if i != 4:
-#         continue
-    results = {}
-    model = generate_onpolicy_model(drift_scale=drift_scale, repetition_kernel_scale=repetition_kernel_scale, stimulation_immediate_scale=stimulation_immediate_scale, random_walk_scale=rw_scale, saturating_ema=False, log_diminishing_perseverance=True, lapse=True, switch_scale=0.1)
-    mcmc, idata = fit(model, 4, X=X_, stage=stage_, y=y_)
+def run(config, name=''):
 
-    az.to_netcdf(idata, f'output/idatas/drift{drift_scale}_rep{repetition_kernel_scale}_stimIE{stimulation_immediate_scale}_RW{rw_scale}_session{i}.nc')
-#     display(az.summary(idata, round_to=3, var_names=['~stimulated_weights', '~autocorr', '~stimulated_weights_base', '~logits']))
-    results[f'ema_model | drift: {drift_scale}, rep: {repetition_kernel_scale}, stim_IE: {stimulation_immediate_scale}, RW: {rw_scale}'] = mcmc
-    all_results_ema_model += [results]
-#     break
+    config_hash = hash(config)
+
+    if not os.path.exists(f"output/{config_hash}_{name}/pareto_ks"):
+        os.makedirs(f"output/{config_hash}_{name}/pareto_ks")
+    # %%
+    if not os.path.exists(f"output/{config_hash}_{name}/idatas"):
+        os.makedirs(f"output/{config_hash}_{name}/idatas")
+
+    with open(f'output/{config_hash}_{name}/configdict.pkl', 'wb') as f:
+        pickle.dump(config, f, pickle.HIGHEST_PROTOCOL)
+
+    all_results_ema_model = []
+    for i, (y_, y_prev_indicator_, stage_, X_) in enumerate(zip(y_sep, y_prev_indicator_sep, stage_sep, X_sep)):
+    #     if i != 4:
+    #         continue
+        results = {}
+        model = generate_onpolicy_model(config)
+        mcmc, idata = fit(model, 4, X=X_, stage=stage_, y=y_)
+
+    #     display(az.summary(idata, round_to=3, var_names=['~stimulated_weights', '~autocorr', '~stimulated_weights_base', '~logits']))
+        az.to_netcdf(idata, f'output/{config_hash}_{name}/idatas/session{i}.nc')
+        all_results_ema_model += [mcmc]
+    #     break
 
 
-for i, result in enumerate(all_results_ema_model):
-    
-    mcmc = list(result.values())[0]
-    idata = az.from_numpyro(mcmc)
-    mean_pred = np.array(np.mean(idata.posterior.probs_with_lapse, axis=(0,1)))
-    std_pred = np.array(np.std(idata.posterior.probs_with_lapse, axis=(0,1)))
-#     loo = az.loo(idata, pointwise=True)
-    loo = compute_reloo(model, mcmc, X=X_sep[i], stage=stage_sep[i])
-    fig = go.Figure(go.Scatter(
-                x=np.arange(len(loo.pareto_k)), 
-                y=loo.pareto_k,
-                text=[f'reward: {d[0]}, aversi: {d[1]}, decision: {d[2]}, pred: {d[3]}, std: {d[4]}' for d in list(zip(X_sep[i][:,0], X_sep[i][:,1], y_sep[i], mean_pred, std_pred))],
-                mode='markers'
-            ))
-    fig.add_trace(go.Scatter(
-        x = np.arange(len(loo.pareto_k)),
-        y = np.ones(len(loo.pareto_k))*0.7,
-        mode='lines'
-    ))
-#     fig.show()
+    for i, result in enumerate(all_results_ema_model):
 
-    fig.write_image(f'output/pareto_ks/drift{drift_scale}_rep{repetition_kernel_scale}_stimIE{stimulation_immediate_scale}_RW{rw_scale}_session{i}.svg')
+        mcmc = list(result.values())[0]
+        idata = az.from_numpyro(mcmc)
+        mean_pred = np.array(np.mean(idata.posterior.probs_with_lapse, axis=(0,1)))
+        std_pred = np.array(np.std(idata.posterior.probs_with_lapse, axis=(0,1)))
+    #     loo = az.loo(idata, pointwise=True)
+        loo = compute_reloo(model, mcmc, X=X_sep[i], stage=stage_sep[i])
+        fig = go.Figure(go.Scatter(
+                    x=np.arange(len(loo.pareto_k)), 
+                    y=loo.pareto_k,
+                    text=[f'reward: {d[0]}, aversi: {d[1]}, decision: {d[2]}, pred: {d[3]}, std: {d[4]}' for d in list(zip(X_sep[i][:,0], X_sep[i][:,1], y_sep[i], mean_pred, std_pred))],
+                    mode='markers'
+                ))
+        fig.add_trace(go.Scatter(
+            x = np.arange(len(loo.pareto_k)),
+            y = np.ones(len(loo.pareto_k))*0.7,
+            mode='lines'
+        ))
+    #     fig.show()
+
+        fig.write_image(f'output/{config_hash}_{name}/pareto_ks/session{i}.svg')
+
+
+config = base_config.copy()
+run(config, 'pgr32')
+
+config = base_config.copy()
+config['perseverance_growth_rate']['shape'] = (3,)
+run(config, 'pgr3')
+
+config = base_config.copy()
+config['perseverance_growth_rate']['shape'] = (2,)
+run(config, 'pgr2')
