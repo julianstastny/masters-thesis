@@ -181,7 +181,7 @@ base_config = {
 
 def run(config, name=''):
 
-    config_hash = hash(config)
+    config_hash = abs(hash(str(config)))
 
     if not os.path.exists(f"output/{config_hash}_{name}/pareto_ks"):
         os.makedirs(f"output/{config_hash}_{name}/pareto_ks")
