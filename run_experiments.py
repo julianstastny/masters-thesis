@@ -34,15 +34,19 @@ import plotly.express as px
 
 from models import fit
 from models import generate_onpolicy_model
+from lfo_cv import compute_reloo
 
 import os
 
 if not os.path.exists("output/pareto_ks"):
-    os.mkdir("output/pareto_ks")
+    os.makedirs("output/pareto_ks")
 # %%
+if not os.path.exists("output/idatas"):
+    os.makedirs("output/idatas")
 with open('ApAvDataset_behavior.pkl', 'rb') as f:
     dataset = pickle.load(f)
 
+numpyro.set_host_device_count(8)
 
 # %%
 all_data = dataset.get_data(monkey_id=2, full_sessions_only=True)
@@ -139,7 +143,9 @@ for i, (y_, y_prev_indicator_, stage_, X_) in enumerate(zip(y_sep, y_prev_indica
 #         continue
     results = {}
     model = generate_onpolicy_model(drift_scale=drift_scale, repetition_kernel_scale=repetition_kernel_scale, stimulation_immediate_scale=stimulation_immediate_scale, random_walk_scale=rw_scale, saturating_ema=False, log_diminishing_perseverance=True, lapse=True, switch_scale=0.1)
-    mcmc, idata = fit(model, 1, X=X_, stage=stage_, y=y_)
+    mcmc, idata = fit(model, 4, X=X_, stage=stage_, y=y_)
+
+    az.to_netcdf(idata, f'output/idatas/drift{drift_scale}_rep{repetition_kernel_scale}_stimIE{stimulation_immediate_scale}_RW{rw_scale}_session{i}.nc')
 #     display(az.summary(idata, round_to=3, var_names=['~stimulated_weights', '~autocorr', '~stimulated_weights_base', '~logits']))
     results[f'ema_model | drift: {drift_scale}, rep: {repetition_kernel_scale}, stim_IE: {stimulation_immediate_scale}, RW: {rw_scale}'] = mcmc
     all_results_ema_model += [results]
@@ -150,7 +156,6 @@ for i, result in enumerate(all_results_ema_model):
     
     mcmc = list(result.values())[0]
     idata = az.from_numpyro(mcmc)
-    az.to_netcdf(f'output/idatas/drift{drift_scale}_rep{repetition_kernel_scale}_stimIE{stimulation_immediate_scale}_RW{rw_scale}_session{i}.nc')
     mean_pred = np.array(np.mean(idata.posterior.probs_with_lapse, axis=(0,1)))
     std_pred = np.array(np.std(idata.posterior.probs_with_lapse, axis=(0,1)))
 #     loo = az.loo(idata, pointwise=True)
