@@ -179,13 +179,17 @@ base_config = {
 }
 
 
-def run(config, name=''):
+def run(config, name='', reuse_models=True):
 
     config_hash = abs(hash(str(config)))
+#     use_saved_mcmc = False
 
     if not os.path.exists(f"output/{config_hash}_{name}/pareto_ks"):
         os.makedirs(f"output/{config_hash}_{name}/pareto_ks")
     # %%
+    if not os.path.exists(f"output/{config_hash}_{name}/mcmcs"):
+        os.makedirs(f"output/{config_hash}_{name}/mcmcs")
+
     if not os.path.exists(f"output/{config_hash}_{name}/idatas"):
         os.makedirs(f"output/{config_hash}_{name}/idatas")
 
@@ -194,21 +198,19 @@ def run(config, name=''):
 
     all_results_ema_model = []
     for i, (y_, y_prev_indicator_, stage_, X_) in enumerate(zip(y_sep, y_prev_indicator_sep, stage_sep, X_sep)):
-    #     if i != 4:
-    #         continue
-        results = {}
+#         if use_saved_mcmc:
+#             all_results_ema_model += [mcmc]
+
         model = generate_onpolicy_model(config)
         mcmc, idata = fit(model, 4, X=X_, stage=stage_, y=y_)
-
-    #     display(az.summary(idata, round_to=3, var_names=['~stimulated_weights', '~autocorr', '~stimulated_weights_base', '~logits']))
         az.to_netcdf(idata, f'output/{config_hash}_{name}/idatas/session{i}.nc')
+        with open(f'output/{config_hash}_{name}/mcmcs/session{i}.pkl', 'wb') as f:
+            pickle.dump(mcmc, f, pickle.HIGHEST_PROTOCOL)
         all_results_ema_model += [mcmc]
-    #     break
 
 
-    for i, result in enumerate(all_results_ema_model):
+    for i, mcmc in enumerate(all_results_ema_model):
 
-        mcmc = list(result.values())[0]
         idata = az.from_numpyro(mcmc)
         mean_pred = np.array(np.mean(idata.posterior.probs_with_lapse, axis=(0,1)))
         std_pred = np.array(np.std(idata.posterior.probs_with_lapse, axis=(0,1)))
