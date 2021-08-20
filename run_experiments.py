@@ -37,6 +37,7 @@ from models import generate_onpolicy_model
 from lfo_cv import compute_reloo
 
 import os
+import argparse
 
 
 with open('ApAvDataset_behavior.pkl', 'rb') as f:
@@ -235,14 +236,22 @@ def run(config, name='', reuse_models=True, smoke_test=False):
         if smoke_test:
             break
 
+if __name__ == "__main__":
 
-config = base_config.copy()
-run(config, 'pgr32')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--smoketest', default=False, action=argparse.BooleanOptionalAction)
+    args = parser.parse_args()
+    
+    if args.smoketest:
+        print('Running smoketest!')
 
-config = base_config.copy()
-config['perseverance_growth_rate']['shape'] = (3,)
-run(config, 'pgr3')
+    config = base_config.copy()
+    run(config, 'pgr32', smoke_test=args.smoketest)
 
-config = base_config.copy()
-config['perseverance_growth_rate']['shape'] = (2,)
-run(config, 'pgr2')
+    config = base_config.copy()
+    config['perseverance_growth_rate']['shape'] = (3,)
+    run(config, 'pgr3', smoke_test=args.smoketest)
+
+    config = base_config.copy()
+    config['perseverance_growth_rate']['shape'] = (2,)
+    run(config, 'pgr2', smoke_test=args.smoketest)
