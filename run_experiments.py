@@ -201,13 +201,17 @@ def run(config, name='', reuse_models=True, smoke_test=False):
     for i, (y_, y_prev_indicator_, stage_, X_) in enumerate(zip(y_sep, y_prev_indicator_sep, stage_sep, X_sep)):
 #         if use_saved_mcmc:
 #             all_results_ema_model += [mcmc]
-
-        model = generate_onpolicy_model(config)
-        mcmc, idata = fit(model, 4, X=X_, stage=stage_, y=y_)
-        az.to_netcdf(idata, f'output/{config_hash}_{name}/idatas/session{i}.nc')
-        with open(f'output/{config_hash}_{name}/mcmcs/session{i}.pkl', 'wb') as f:
-            pickle.dump(mcmc, f, pickle.HIGHEST_PROTOCOL)
-        all_results_ema_model += [mcmc]
+        try:
+            assert (not smoke_test)
+            with open(f'output/{config_hash}_{name}/mcmcs/session{i}.pkl', 'rb') as f:
+                mcmc = pickle.load(f)
+        except:
+            model = generate_onpolicy_model(config)
+            mcmc, idata = fit(model, 4, X=X_, stage=stage_, y=y_)
+            az.to_netcdf(idata, f'output/{config_hash}_{name}/idatas/session{i}.nc')
+            with open(f'output/{config_hash}_{name}/mcmcs/session{i}.pkl', 'wb') as f:
+                pickle.dump(mcmc, f, pickle.HIGHEST_PROTOCOL)
+            all_results_ema_model += [mcmc]
         if smoke_test:
             break
 
