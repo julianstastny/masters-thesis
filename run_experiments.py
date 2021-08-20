@@ -179,7 +179,7 @@ base_config = {
 }
 
 
-def run(config, name='', reuse_models=True):
+def run(config, name='', reuse_models=True, smoke_test=False):
 
     config_hash = abs(hash(str(config)))
 #     use_saved_mcmc = False
@@ -207,6 +207,8 @@ def run(config, name='', reuse_models=True):
         with open(f'output/{config_hash}_{name}/mcmcs/session{i}.pkl', 'wb') as f:
             pickle.dump(mcmc, f, pickle.HIGHEST_PROTOCOL)
         all_results_ema_model += [mcmc]
+        if smoke_test:
+            break
 
 
     for i, mcmc in enumerate(all_results_ema_model):
@@ -230,6 +232,8 @@ def run(config, name='', reuse_models=True):
     #     fig.show()
 
         fig.write_image(f'output/{config_hash}_{name}/pareto_ks/session{i}.svg')
+        if smoke_test:
+            break
 
 
 config = base_config.copy()
