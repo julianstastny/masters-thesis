@@ -182,19 +182,22 @@ base_config = {
 
 def run(config, name='', reuse_models=True, smoke_test=False):
 
-    config_hash = abs(hash(str(config)))
+#     config_hash = abs(hash(str(config)))
 #     use_saved_mcmc = False
 
-    if not os.path.exists(f"output/{config_hash}_{name}/pareto_ks"):
-        os.makedirs(f"output/{config_hash}_{name}/pareto_ks")
+    if not os.path.exists(f"output/{name}/pareto_ks"):
+        os.makedirs(f"output/{name}/pareto_ks")
     # %%
-    if not os.path.exists(f"output/{config_hash}_{name}/mcmcs"):
-        os.makedirs(f"output/{config_hash}_{name}/mcmcs")
+    if not os.path.exists(f"output/{name}/mcmcs"):
+        os.makedirs(f"output/{name}/mcmcs")
 
-    if not os.path.exists(f"output/{config_hash}_{name}/idatas"):
-        os.makedirs(f"output/{config_hash}_{name}/idatas")
-
-    with open(f'output/{config_hash}_{name}/configdict.pkl', 'wb') as f:
+    if not os.path.exists(f"output/{name}/idatas"):
+        os.makedirs(f"output/{name}/idatas")
+        
+    if not os.path.exists(f"output/{name}/loos"):
+        os.makedirs(f"output/{name}/loos")
+        
+    with open(f'output/{name}/configdict.pkl', 'wb') as f:
         pickle.dump(config, f, pickle.HIGHEST_PROTOCOL)
 
     all_results_ema_model = []
@@ -203,15 +206,15 @@ def run(config, name='', reuse_models=True, smoke_test=False):
 #             all_results_ema_model += [mcmc]
         try:
             assert (not smoke_test)
-            with open(f'output/{config_hash}_{name}/mcmcs/session{i}.pkl', 'rb') as f:
+            with open(f'output/{name}/mcmcs/session{i}.pkl', 'rb') as f:
                 mcmc = pickle.load(f)
             print('Successfully loaded MCMC object.')
         except:
             print('Fitting')
             model = generate_onpolicy_model(config)
             mcmc, idata = fit(model, 4, X=X_, stage=stage_, y=y_)
-            az.to_netcdf(idata, f'output/{config_hash}_{name}/idatas/session{i}.nc')
-            with open(f'output/{config_hash}_{name}/mcmcs/session{i}.pkl', 'wb') as f:
+            az.to_netcdf(idata, f'output/{name}/idatas/session{i}.nc')
+            with open(f'output/{name}/mcmcs/session{i}.pkl', 'wb') as f:
                 pickle.dump(mcmc, f, pickle.HIGHEST_PROTOCOL)
             all_results_ema_model += [mcmc]
         if smoke_test:
@@ -237,8 +240,8 @@ def run(config, name='', reuse_models=True, smoke_test=False):
             mode='lines'
         ))
     #     fig.show()
-
-        fig.write_image(f'output/{config_hash}_{name}/pareto_ks/session{i}.svg')
+        loo.to_csv(f'output/{name}/loos/session{i}.csv')
+        fig.write_image(f'output/{name}/pareto_ks/session{i}.svg')
         if smoke_test:
             break
 

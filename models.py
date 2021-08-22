@@ -15,7 +15,6 @@ from numpyro.distributions.util import clamp_probs
 from jax.scipy.special import betainc
 from jax.scipy.special import gammaincc
 
-
 import arviz as az
 
 import numpy as np
@@ -411,9 +410,25 @@ def generate_onpolicy_model(config):
             "mean_reversion",
             target_shape=3,
         )
+#         if (y is None) or sum(y==-1)==0:
+#             y_imputed = y
+#         else:
+#             for j in np.flatnonzero(y == -1):
+#                 concat_list += [y[i:j]]
+#                 y_j = numpyro.sample(f"y_null_{j}", dist.Bernoulli(0.5).mask(False))
+#                 concat_list += [y_j]
+#                 i = j+1
+#             concat_list += [y[i:]]
+#             y_imputed = jnp.concatenate(concat_list)
+#         if y is not None and (sum(y==-1)==1):
+#             j = np.flatnonzero(y==-1).item()
+#             y_j = numpyro.sample(f"y_null_{j}", dist.Bernoulli(0.5).mask(False))
+#             y = jax.ops.index_update(y, j, y_j)
+#             y_imputed = jnp.concatenate([y[:j], y_j, y[j+1:]])
         if y is not None:
-            for i in np.flatnonzero(y == -1):
-                y[i] = numpyro.sample(f"y_null_{i}", dist.Bernoulli(0.5).mask(False))
+            for j in np.flatnonzero(y==-1):
+                y_j = numpyro.sample(f"y_null_{j}", dist.Bernoulli(0.5).mask(False))
+                y = jax.ops.index_update(y, j, y_j)
 
         def transition(carry, xs):
             weight_prev, ema_pos_prev, ema_neg_prev, y_prev = carry
