@@ -222,26 +222,32 @@ def run(config, name='', reuse_models=True, smoke_test=False):
 
 
     for i, mcmc in enumerate(all_results_ema_model):
-
-        idata = az.from_numpyro(mcmc)
-        mean_pred = np.array(np.mean(idata.posterior.probs_with_lapse, axis=(0,1)))
-        std_pred = np.array(np.std(idata.posterior.probs_with_lapse, axis=(0,1)))
-    #     loo = az.loo(idata, pointwise=True)
-        loo = compute_reloo(model, mcmc, X=X_sep[i], stage=stage_sep[i])
-        fig = go.Figure(go.Scatter(
-                    x=np.arange(len(loo.pareto_k)), 
-                    y=loo.pareto_k,
-                    text=[f'reward: {d[0]}, aversi: {d[1]}, decision: {d[2]}, pred: {d[3]}, std: {d[4]}' for d in list(zip(X_sep[i][:,0], X_sep[i][:,1], y_sep[i], mean_pred, std_pred))],
-                    mode='markers'
-                ))
-        fig.add_trace(go.Scatter(
-            x = np.arange(len(loo.pareto_k)),
-            y = np.ones(len(loo.pareto_k))*0.7,
-            mode='lines'
-        ))
-    #     fig.show()
-        loo.to_csv(f'output/{name}/loos/session{i}.csv')
-        fig.write_image(f'output/{name}/pareto_ks/session{i}.svg')
+        
+        try:
+            assert (not smoke_test)
+            loo = pd.read_csv(f'output/{name}/loos/session{i}.pkl')
+            print('Already computed loo.')
+        except:
+            print('Fitting loo')        
+            idata = az.from_numpyro(mcmc)
+            mean_pred = np.array(np.mean(idata.posterior.probs_with_lapse, axis=(0,1)))
+            std_pred = np.array(np.std(idata.posterior.probs_with_lapse, axis=(0,1)))
+        #     loo = az.loo(idata, pointwise=True)
+            loo = compute_reloo(model, mcmc, X=X_sep[i], stage=stage_sep[i])
+            fig = go.Figure(go.Scatter(
+                        x=np.arange(len(loo.pareto_k)), 
+                        y=loo.pareto_k,
+                        text=[f'reward: {d[0]}, aversi: {d[1]}, decision: {d[2]}, pred: {d[3]}, std: {d[4]}' for d in list(zip(X_sep[i][:,0], X_sep[i][:,1], y_sep[i], mean_pred, std_pred))],
+                        mode='markers'
+                    ))
+            fig.add_trace(go.Scatter(
+                x = np.arange(len(loo.pareto_k)),
+                y = np.ones(len(loo.pareto_k))*0.7,
+                mode='lines'
+            ))
+        #     fig.show()
+            loo.to_csv(f'output/{name}/loos/session{i}.csv')
+            fig.write_image(f'output/{name}/pareto_ks/session{i}.svg')
         if smoke_test:
             break
 
