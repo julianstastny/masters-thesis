@@ -193,7 +193,10 @@ def run(config, name='', reuse_models=True, smoke_test=False):
 
     if not os.path.exists(f"output/{config_hash}_{name}/idatas"):
         os.makedirs(f"output/{config_hash}_{name}/idatas")
-
+        
+    if not os.path.exists(f"output/{config_hash}_{name}/loos"):
+        os.makedirs(f"output/{config_hash}_{name}/loos")
+        
     with open(f'output/{config_hash}_{name}/configdict.pkl', 'wb') as f:
         pickle.dump(config, f, pickle.HIGHEST_PROTOCOL)
 
@@ -237,7 +240,7 @@ def run(config, name='', reuse_models=True, smoke_test=False):
             mode='lines'
         ))
     #     fig.show()
-
+        loo.to_scv(f'output/{config_hash}_{name}/loos/session{i}.csv')
         fig.write_image(f'output/{config_hash}_{name}/pareto_ks/session{i}.svg')
         if smoke_test:
             break
