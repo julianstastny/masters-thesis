@@ -64,7 +64,7 @@ data = [datum for datum in all_data if (datum['metadata']['significant_diff'] an
 # data = [datum for datum in all_data if (datum['metadata']['significant_diff'] and datum['metadata']['stim_increases_avoidance'])]#[0:NUM_SESSIONS]
 #data = all_data[idx:idx+1]
 NUM_SESSIONS=len(data)
-# assert NUM_SESSIONS == 24 # Temporary
+# assert NUM_SESSIONS == 
 # %%
 session_lengths = [sum(datum['metadata']['datanums'].values()) for datum in data]
 
