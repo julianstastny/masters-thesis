@@ -115,8 +115,11 @@ class NumPyroSamplingWrapper(az.SamplingWrapper):
         return az.dict_to_dataset(data)[obs_name]
     
     def sample(self, modified_observed_data):
+        numpyro.set_host_device_count(2)
+        print(sum(modified_observed_data['y']==-1))
         self.rng_key, subkey = random.split(self.rng_key)
         mcmc = MCMC(**self.sample_kwargs)
+        print(modified_observed_data)
         mcmc.run(subkey, **modified_observed_data)
         mcmc.print_summary(exclude_deterministic=True)
         return mcmc
@@ -131,6 +134,7 @@ class OnPolicyModelWrapper(NumPyroSamplingWrapper):
         if not isinstance(idx, int):
             assert len(idx) == 1
             idx = idx[0]
+#         print(idx)
         X_data = self.idata_orig.constant_data["X"].values
         stage_data = self.idata_orig.constant_data["stage"].values
         ydata = self.idata_orig.observed_data["y"].values
@@ -150,24 +154,24 @@ class OnPolicyModelWrapper(NumPyroSamplingWrapper):
 # # #         print(idx)
         ydata_i[idx] = -1
             
-        data__i = {"X": X_data, "y": ydata, "stage": stage_data}
-        data_ex = {"idx": idx, "data": {"y": ydata_i, "X": X_data, "stage": stage_data}}
+        data__i = {"X": X_data, "y": ydata_i, "stage": stage_data}
+        data_ex = {"idx": idx, "data": {"y": ydata, "X": X_data, "stage": stage_data}}
         return data__i, data_ex
     
-def compute_reloo(model, mcmc, **data_kwargs):
+def compute_reloo(model, mcmc, loo_orig=None, **data_kwargs):
     idata_kwargs = {"constant_data": data_kwargs}
     idata = az.from_numpyro(mcmc, **idata_kwargs)
     sample_kwargs = dict(
         sampler=DiscreteHMCGibbs(NUTS(model), modified=True), 
         num_warmup=1000, 
         num_samples=1000, 
-        num_chains=4, 
+        num_chains=2, 
     )    
 #     sample_kwargs = dict(
 #         sampler=NUTS(model), 
-#         num_warmup=1000, 
-#         num_samples=1000, 
-#         num_chains=1, 
+#         num_warmup=100, 
+#         num_samples=100, 
+#         num_chains=2, 
 #     )
     numpyro_wrapper = OnPolicyModelWrapper(
         mcmc, 
@@ -176,12 +180,13 @@ def compute_reloo(model, mcmc, **data_kwargs):
         sample_kwargs=sample_kwargs, 
         idata_kwargs=idata_kwargs
     )
-    loo_orig = az.loo(idata, pointwise=True)
+    if loo_orig is None:
+        loo_orig = az.loo(idata, pointwise=True)
     num_warning = np.sum(loo_orig.pareto_k > 0.7)
     if num_warning > 0:
         print(f"Pareto-k over 0.7 for {num_warning} points.")
         if num_warning <= 3:
-            loo = az.reloo(numpyro_wrapper, loo_orig=loo_orig)
+            loo = az.reloo(numpyro_wrapper, loo_orig=loo_orig, verbose=True)
         else:
             print("Too many points over 0.7, refitting is expensive.")
             loo = loo_orig

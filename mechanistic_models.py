@@ -31,8 +31,8 @@ def fit(model, num_chains, num_warmup=1000, num_samples=1000, rng_seed=0, **kwar
         num_samples=num_samples,
     )
     rng_key = jax.random.PRNGKey(rng_seed)
-    with numpyro.validation_enabled():
-        mcmc.run(rng_key, **kwargs)
+#     with numpyro.validation_enabled():
+    mcmc.run(rng_key, **kwargs)
     return mcmc, az.from_numpyro(mcmc)
 
 
@@ -181,8 +181,8 @@ def poisson_cdf(value, rate):
 #             "alpha", dist.Beta(np.ones(2), np.ones(2)).to_event(1)
 #         ).flatten()
 #         lapse_prob, approach_given_lapse = lapse_fn()
-#         mean_reversion = numpyro.sample(
-#             "mean_reversion", dist.Uniform(np.zeros(3), np.ones(3)).to_event(1)
+#         inverse_mean_reversion = numpyro.sample(
+#             "inverse_mean_reversion", dist.Uniform(np.zeros(3), np.ones(3)).to_event(1)
 #         )
 #         if y is not None:
 #             for i in np.flatnonzero(y==-1):
@@ -196,7 +196,7 @@ def poisson_cdf(value, rate):
 #                     dist.TransformedDistribution(
 #                         dist.Normal(jnp.zeros(3), 1).to_event(1),
 #                         dist.transforms.AffineTransform(
-#                             mean_reversion[stage_curr] * weight_prev
+#                             inverse_mean_reversion[stage_curr] * weight_prev
 #                             + drift[stage_curr],
 #                             volatility * (1 - switch) + switch_scale * switch,
 #                         ),
@@ -309,10 +309,15 @@ config = {
         "dist_type": dist.Beta,
         "params": {"concentration0": 1.0, "concentration1": 1.0},
     },
-    "mean_reversion": {
+    "inverse_mean_reversion": {
         "shape": (3,),
         "dist_type": dist.Uniform,
         "params": {"low": 0.0, "high": 1.0},
+    },
+    "learning_rate": {
+        "shape": (3,),
+        "dist_type": dist.HalfNormal,
+        "params": {"scale": 0.1},
     },
     "switch_scale": 1.0,
     "saturating_ema": False,
@@ -320,7 +325,7 @@ config = {
 }
 
 
-def generate_onpolicy_model(config):
+def generate_mechanistic_model(config):
     assert not (config['saturating_ema'] and config['poisson_cdf_diminishing_perseverance'])
     switch_scale = config['switch_scale']
     saturating_ema = int(config['saturating_ema'])
@@ -348,33 +353,64 @@ def generate_onpolicy_model(config):
             return x
 
     def model(X, stage, y=None):
-        true_weight_mean = numpyro_sample(
-            "true_weight_mean",
-            dist.Normal,
-            ind_shape=(3,),
-            target_shape=3,
-            loc=0.0,
-            scale=1.0,
-        )
-        true_weight_scale = numpyro_sample(
-            "true_weight_scale",
-            dist.HalfNormal,
-            ind_shape=(3,),
-            target_shape=3,
-            scale=1.0,
-        )
+        X = np.concatenate((X, np.ones((X.shape[0],1))),axis=1)
+        print(X.shape)
+#         true_weight_mean = numpyro_sample(
+#             "true_weight_mean",
+#             dist.Normal,
+#             ind_shape=(3,),
+#             target_shape=3,
+#             loc=0.0,
+#             scale=1.0,
+#         )
+#         true_weight_mean_prior_mean = numpyro_sample(
+#             "true_weight_mean_prior_mean",
+#             dist.Normal,
+#             ind_shape=(3,),
+#             target_shape=3,
+#             loc=0.0,
+#             scale=1.0,
+#         )  
+#         true_weight_mean_prior_scale = numpyro_sample(
+#             "true_weight_mean_prior_scale",
+#             dist.HalfNormal,
+#             ind_shape=(3,),
+#             target_shape=3,
+#             scale=1.0,
+#         )  
+        true_weight_mean = []
+        loc = np.zeros(3)
+        for i in range(3):
+            with numpyro.handlers.reparam(config={f"true_weight_mean_{i}": TransformReparam()}):
+                true_weight_mean_i = numpyro.sample(
+                    f"true_weight_mean_{i}",
+                    dist.TransformedDistribution(
+                        dist.Normal(jnp.zeros(3), 1).to_event(1),
+                        dist.transforms.AffineTransform(
+                            loc,
+                            1
+                        ),
+                    ),
+                )
+            loc = true_weight_mean_i
+            true_weight_mean += [jnp.expand_dims(true_weight_mean_i, 0)]
         #         volatility = numpyro_sample(
         #             "volatility", dist.HalfNormal, ind_shape=(3,), target_shape=3, scale=0.1
         #         )
+        true_weight_mean = jnp.concatenate(true_weight_mean, axis=0)
+        print(true_weight_mean)
         volatility = numpyro_config_sample("volatility", target_shape=3)
+        learning_rate = numpyro_config_sample("learning_rate", target_shape=(3, 3))  
         with numpyro.handlers.reparam(config={"initial_weight": TransformReparam()}):
             init_weight = numpyro.sample(
                 "initial_weight",
                 dist.TransformedDistribution(
                     dist.Normal(jnp.zeros(3), 1).to_event(1),
                     dist.transforms.AffineTransform(
-                        true_weight_mean,
-                        true_weight_scale,
+#                         true_weight_mean,
+                        true_weight_mean[0],
+                        1
+#                         true_weight_scale,
                     ),
                 ),
             )
@@ -385,10 +421,10 @@ def generate_onpolicy_model(config):
             "perseverance_growth_rate",
             target_shape=(3, 2),
         )
-        drift = numpyro_config_sample(
-            "drift",
-            target_shape=(3, 3),
-        )
+#         drift = numpyro_config_sample(
+#             "drift",
+#             target_shape=(3, 3),
+#         )
         stimulation_immediate = numpyro_config_sample(
             "stimulation_immediate",
             target_shape=(3, 3),
@@ -406,8 +442,8 @@ def generate_onpolicy_model(config):
             "approach_given_lapse",
             target_shape=(3,),
         )
-        mean_reversion = numpyro_config_sample(
-            "mean_reversion",
+        inverse_mean_reversion = numpyro_config_sample(
+            "inverse_mean_reversion",
             target_shape=3,
         )
 #         if (y is None) or sum(y==-1)==0:
@@ -431,23 +467,10 @@ def generate_onpolicy_model(config):
                 y = jax.ops.index_update(y, j, y_j)
 
         def transition(carry, xs):
+#             weight_prev, ema_pos_prev, ema_neg_prev, y_prev, ar_1_prev = carry
             weight_prev, ema_pos_prev, ema_neg_prev, y_prev = carry
             stage_curr, switch, x_curr, y_curr = xs
-            with numpyro.handlers.reparam(config={"AR(1)": TransformReparam()}):
-                weight_curr = numpyro.sample(
-                    "AR(1)",
-                    dist.TransformedDistribution(
-                        dist.Normal(jnp.zeros(3), 1).to_event(1),
-                        dist.transforms.AffineTransform(
-                            mean_reversion[stage_curr] * weight_prev
-                            + drift[stage_curr],
-                            volatility * (1 - switch) + switch_scale * switch,
-                        ),
-                    ),
-                )
-            weights_with_offset = numpyro.deterministic(
-                "stimulated_weights", init_weight + weight_curr
-            )
+            weight_with_offset = numpyro.deterministic('stimulated_weights', init_weight + weight_prev)
             ema_pos_curr = numpyro.deterministic(
                 "ema_positive", ema(ema_pos_prev, y_prev == 1, forget_rate[0])
             )
@@ -465,11 +488,10 @@ def generate_onpolicy_model(config):
                 lema_pos_curr * repetition_kernel[stage_curr, 0]
                 + lema_neg_curr * repetition_kernel[stage_curr, 1],
             )
+            utility = x_curr[0] * weight_with_offset[0] + x_curr[1] * weight_with_offset[1] + weight_with_offset[2]
             logit = numpyro.deterministic(
                 "logits",
-                x_curr[0] * weights_with_offset[0]
-                + x_curr[1] * weights_with_offset[1]
-                + weights_with_offset[2]
+                utility
                 + autocorr,
             )
             prob_with_lapse = numpyro.deterministic(
@@ -480,12 +502,51 @@ def generate_onpolicy_model(config):
             obs = numpyro.sample(
                 "y", dist.Bernoulli(probs=clamp_probs(prob_with_lapse)), obs=y_curr
             )
-            return (weight_curr, ema_pos_curr, ema_neg_curr, obs), (obs)
+            # ====Mechanistic part====
+            true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + true_weight_mean[stage_curr][2]
+            delta = numpyro.deterministic("delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
+            print(delta)
+#             with numpyro.handlers.reparam(config={"AR(1) with learning": TransformReparam()}):
+#                 new_weights = numpyro.sample(
+#                     "AR(1) with learning",
+#                     dist.TransformedDistribution(
+#                         dist.Normal(jnp.zeros(3), 1).to_event(1),
+#                         dist.transforms.AffineTransform(
+#                             (1 - inverse_mean_reversion[stage_curr]) * weight_prev
+#                             - learning_rate[stage_curr] * delta,
+#                             volatility * (1 - switch) + switch_scale * switch,
+#                         ),
+#                     ),
+#                 )
+            new_weights = numpyro.deterministic(
+                "AR(1) with learning",
+                weight_prev - learning_rate[stage_curr] * delta)
+            # TODO: Make it possible to change the true utility function
+#             with numpyro.handlers.reparam(config={"true_weight_mean": TransformReparam()}):
+#                 true_weight_mean = numpyro.sample(
+#                     "true_weight_mean",
+#                     dist.TransformedDistribution(
+#                         dist.Normal(jnp.zeros(3), 1).to_event(1),
+#                         dist.transforms.AffineTransform(
+#                             true_weight_mean,
+#                             volatility * (1 - switch) + switch_scale * switch,
+#                         ),
+#                     ),
+#                 )
+#             new_weights = numpyro.deterministic(
+#                 "stimulated_weights", weight_prev + ar_1 - learning_rate * delta
+#             )
+#             new_weights = weight_prev + ar_1 - learning_rate[stage_curr] * delta
+#             new_weights = weight_prev + ar_1 - delta
+            # ====Mechanistic part====end
+#             return (new_weights, ema_pos_curr, ema_neg_curr, obs, ar_1), (obs)
+            return (new_weights, ema_pos_curr, ema_neg_curr, obs), (obs)
 
         _, (obs) = scan(
             transition,
             #             (init_weight, np.array([ema_pos_init]), np.array([ema_neg_init]), np.array([y_prev_init])),
-            (jnp.zeros(3), 0.5, 0.5, -1),
+#             (np.zeros(3), 0.5, 0.5, -1, jnp.zeros(3)),
+            (np.zeros(3), 0.5, 0.5, -1),
             (stage, switch_indicator, X, y),
             length=len(X),
         )
