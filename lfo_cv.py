@@ -150,8 +150,8 @@ class OnPolicyModelWrapper(NumPyroSamplingWrapper):
 # # #         print(idx)
         ydata_i[idx] = -1
             
-        data__i = {"X": X_data, "y": ydata, "stage": stage_data}
-        data_ex = {"idx": idx, "data": {"y": ydata_i, "X": X_data, "stage": stage_data}}
+        data__i = {"X": X_data, "y": ydata_i, "stage": stage_data}
+        data_ex = {"idx": idx, "data": {"y": ydata, "X": X_data, "stage": stage_data}}
         return data__i, data_ex
     
 def compute_reloo(model, mcmc, **data_kwargs):
@@ -161,7 +161,7 @@ def compute_reloo(model, mcmc, **data_kwargs):
         sampler=DiscreteHMCGibbs(NUTS(model), modified=True), 
         num_warmup=1000, 
         num_samples=1000, 
-        num_chains=4, 
+        num_chains=2, 
     )    
 #     sample_kwargs = dict(
 #         sampler=NUTS(model), 

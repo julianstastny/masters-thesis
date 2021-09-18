@@ -426,9 +426,8 @@ def generate_onpolicy_model(config):
 #             y = jax.ops.index_update(y, j, y_j)
 #             y_imputed = jnp.concatenate([y[:j], y_j, y[j+1:]])
         if y is not None:
-            for j in np.flatnonzero(y==-1):
-                y_j = numpyro.sample(f"y_null_{j}", dist.Bernoulli(0.5).mask(False))
-                y = jax.ops.index_update(y, j, y_j)
+            for i in np.flatnonzero(y == -1):
+                y = jax.ops.index_update(y, i, numpyro.sample(f"y_null_{i}", dist.Bernoulli(0.5).mask(False)))
 
         def transition(carry, xs):
             weight_prev, ema_pos_prev, ema_neg_prev, y_prev = carry
@@ -485,7 +484,7 @@ def generate_onpolicy_model(config):
         _, (obs) = scan(
             transition,
             #             (init_weight, np.array([ema_pos_init]), np.array([ema_neg_init]), np.array([y_prev_init])),
-            (init_weight, 0.5, 0.5, -1),
+            (jnp.zeros(3), 0.5, 0.5, -1),
             (stage, switch_indicator, X, y),
             length=len(X),
         )
