@@ -370,37 +370,50 @@ def generate_mechanistic_model(config):
 #             target_shape=3,
 #             loc=0.0,
 #             scale=1.0,
-#         )  
+#         )
 #         true_weight_mean_prior_scale = numpyro_sample(
 #             "true_weight_mean_prior_scale",
 #             dist.HalfNormal,
 #             ind_shape=(3,),
 #             target_shape=3,
 #             scale=1.0,
-#         )  
-        true_weight_mean = []
-        loc = np.zeros(3)
-        for i in range(3):
-            with numpyro.handlers.reparam(config={f"true_weight_mean_{i}": TransformReparam()}):
-                true_weight_mean_i = numpyro.sample(
-                    f"true_weight_mean_{i}",
+#         )
+        # true_weight_mean = []
+        true_weight_mean_0 = numpyro_sample('true_weight_mean_nostim', dist.Normal, (3,), (1, 3))
+        with numpyro.handlers.reparam(config={"true_weight_mean_stim": TransformReparam()}):
+            true_weight_mean_1 = numpyro.sample(
+                "true_weight_mean_stim",
+                dist.TransformedDistribution(
+                    dist.Normal(0, 1).expand((1,3)).to_event(1),
+                    dist.transforms.AffineTransform(
+                        true_weight_mean_0,
+                        1
+                    ),
+                ),
+            )
+        if True:
+            true_weight_mean_2 = numpyro.deterministic("true_weight_mean_resid", true_weight_mean_0)
+        else:
+            with numpyro.handlers.reparam(config={"true_weight_mean_resid": TransformReparam()}):
+                true_weight_mean_2 = numpyro.sample(
+                    "true_weight_mean_resid",
                     dist.TransformedDistribution(
-                        dist.Normal(jnp.zeros(3), 1).to_event(1),
+                        dist.Normal(0, 1).expand((1,3)).to_event(1),
                         dist.transforms.AffineTransform(
-                            loc,
+                            true_weight_mean_1,
                             1
                         ),
                     ),
                 )
-            loc = true_weight_mean_i
-            true_weight_mean += [jnp.expand_dims(true_weight_mean_i, 0)]
+        # true_weight_mean += [jnp.expand_dims(true_weight_mean_i, 0)]
+        true_weight_mean = jnp.concatenate([true_weight_mean_0, true_weight_mean_1, true_weight_mean_2], axis=0)
         #         volatility = numpyro_sample(
         #             "volatility", dist.HalfNormal, ind_shape=(3,), target_shape=3, scale=0.1
         #         )
-        true_weight_mean = jnp.concatenate(true_weight_mean, axis=0)
+        # true_weight_mean = jnp.concatenate(true_weight_mean, axis=0)
         print(true_weight_mean)
         volatility = numpyro_config_sample("volatility", target_shape=3)
-        learning_rate = numpyro_config_sample("learning_rate", target_shape=(3, 3))  
+        learning_rate = numpyro_config_sample("learning_rate", target_shape=(3, 3))
         with numpyro.handlers.reparam(config={"initial_weight": TransformReparam()}):
             init_weight = numpyro.sample(
                 "initial_weight",
