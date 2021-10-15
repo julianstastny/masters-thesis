@@ -229,11 +229,11 @@ def run(config, name='', reuse_models=True, smoke_test=False):
     if not os.path.exists(f"output/{name}/pareto_ks"):
         os.makedirs(f"output/{name}/pareto_ks")
     # %%
-    if not os.path.exists(f"output/{name}/mcmcs"):
-        os.makedirs(f"output/{name}/mcmcs")
+#     if not os.path.exists(f"output/{name}/mcmcs"):
+#         os.makedirs(f"output/{name}/mcmcs")
 
-    if not os.path.exists(f"output/{name}/idatas"):
-        os.makedirs(f"output/{name}/idatas")
+#     if not os.path.exists(f"output/{name}/idatas"):
+#         os.makedirs(f"output/{name}/idatas")
 
     if not os.path.exists(f"output/{name}/loos"):
         os.makedirs(f"output/{name}/loos")
@@ -246,7 +246,7 @@ def run(config, name='', reuse_models=True, smoke_test=False):
         pickle.dump(dates, f, pickle.HIGHEST_PROTOCOL)
 
     hierarchical_model = generate_hierarchical_model(base_config)
-    params_with_scale = ['true_weight_mean', 'repetition_kernel', 'drift']
+    params_with_scale = ['repetition_kernel', 'drift']
     reparam_config = {key: LocScaleReparam(0) for key in [f"{date}_{param}" for date in str_dates for param in params_with_scale]}
     hierarchical_model = reparam(hierarchical_model, config=reparam_config)
 
@@ -295,13 +295,13 @@ if __name__ == "__main__":
     if args.smoketest:
         print('Running smoketest!')
     #
-    # config = copy.deepcopy(base_config)
+    config = copy.deepcopy(base_config)
     # config['poisson_cdf_diminishing_perseverance'] = True
     # config['perseverance_growth_rate']['shape'] = (1,)
     # config['repetition_kernel']['shape'] = (1,)
     # config['forget_rate']['shape'] = (1,)
     # config['switch_scale'] = 0.0
-    # run(config, 'repetition_base_1param', smoke_test=args.smoketest)
+    run(config, 'baseline_standard', smoke_test=args.smoketest)
     #
     # config = copy.deepcopy(base_config)
     # config['poisson_cdf_diminishing_perseverance'] = False
@@ -311,29 +311,29 @@ if __name__ == "__main__":
     # config['switch_scale'] = 0.0
     # run(config, 'baseline_no_repetition', smoke_test=args.smoketest)
 
-    config = copy.deepcopy(base_config)
-    config['poisson_cdf_diminishing_perseverance'] = True
-    config['perseverance_growth_rate']['shape'] = (2,)
-    config['repetition_kernel']['shape'] = (2,)
-    config['forget_rate']['shape'] = (2,)
-    config['switch_scale'] = 0.0
-    run(config, 'repetition_posneg', smoke_test=args.smoketest)
-    #
-    config = copy.deepcopy(base_config)
-    config['poisson_cdf_diminishing_perseverance'] = True
-    config['perseverance_growth_rate']['shape'] = (3,)
-    config['repetition_kernel']['shape'] = (3,)
-    config['forget_rate']['shape'] = (3,)
-    config['switch_scale'] = 0.0
-    run(config, 'repetition_stimdependent', smoke_test=args.smoketest)
+#     config = copy.deepcopy(base_config)
+#     config['poisson_cdf_diminishing_perseverance'] = True
+#     config['perseverance_growth_rate']['shape'] = (2,)
+#     config['repetition_kernel']['shape'] = (2,)
+#     config['forget_rate']['shape'] = (2,)
+#     config['switch_scale'] = 0.0
+#     run(config, 'repetition_posneg', smoke_test=args.smoketest)
+#     #
+#     config = copy.deepcopy(base_config)
+#     config['poisson_cdf_diminishing_perseverance'] = True
+#     config['perseverance_growth_rate']['shape'] = (3,)
+#     config['repetition_kernel']['shape'] = (3,)
+#     config['forget_rate']['shape'] = (3,)
+#     config['switch_scale'] = 0.0
+#     run(config, 'repetition_stimdependent', smoke_test=args.smoketest)
 
-    config = copy.deepcopy(base_config)
-    config['poisson_cdf_diminishing_perseverance'] = True
-    config['perseverance_growth_rate']['shape'] = (3,2)
-    config['repetition_kernel']['shape'] = (3,2)
-    config['forget_rate']['shape'] = (3,2)
-    config['switch_scale'] = 0.0
-    run(config, 'repetition_posneg_stimdependent', smoke_test=args.smoketest)
+#     config = copy.deepcopy(base_config)
+#     config['poisson_cdf_diminishing_perseverance'] = True
+#     config['perseverance_growth_rate']['shape'] = (3,2)
+#     config['repetition_kernel']['shape'] = (3,2)
+#     config['forget_rate']['shape'] = (3,2)
+#     config['switch_scale'] = 0.0
+#     run(config, 'repetition_posneg_stimdependent', smoke_test=args.smoketest)
 
     # config = copy.deepcopy(base_config)
     # config['perseverance_growth_rate']['shape'] = (2,)

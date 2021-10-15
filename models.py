@@ -496,10 +496,10 @@ def generate_onpolicy_model(config):
                 "stimulated_weights", init_weight + weight_curr
             )
             ema_pos_curr = numpyro.deterministic(
-                "ema_positive", ema(ema_pos_prev, y_prev == 1, forget_rate[0])
+                "ema_positive", ema(ema_pos_prev, y_prev == 1, forget_rate[stage_curr, 0])
             )
             ema_neg_curr = numpyro.deterministic(
-                "ema_negative", ema(ema_pos_prev, y_prev == 0, forget_rate[1])
+                "ema_negative", ema(ema_pos_prev, y_prev == 0, forget_rate[stage_curr, 1])
             )
             lema_pos_curr = process_ema(
                 ema_pos_curr, perseverance_growth_rate[stage_curr, 0]
@@ -584,13 +584,13 @@ def generate_hierarchical_model(config):
             target_shape=3,
             scale=1.0,
         )
-        true_weight_deviation_hyper = numpyro_sample(
-            "true_weight_deviation_hyper",
-            dist.HalfNormal,
-            ind_shape=(3,),
-            target_shape=3,
-            scale=1.0,
-        )
+#         true_weight_deviation_hyper = numpyro_sample(
+#             "true_weight_deviation_hyper",
+#             dist.HalfNormal,
+#             ind_shape=(3,),
+#             target_shape=3,
+#             scale=1.0,
+#         )
         volatility_hyper_scale = numpyro_config_sample("volatility_hyper_scale", target_shape=3)
 
         repetition_kernel_hyper_mean = numpyro_config_sample(
@@ -631,14 +631,14 @@ def generate_hierarchical_model(config):
 
         for X, stage, y, date in zip(X_sep, stage_sep, y_sep, str_dates):
             switch_indicator = generate_switch_indicator(stage)
-            true_weight_mean = numpyro_sample(
-                f"{date}_true_weight_mean",
-                dist.Normal,
-                ind_shape=(3,),
-                target_shape=3,
-                loc=true_weight_hyper_mean,
-                scale=true_weight_hyper_scale,
-            )
+#             true_weight_mean = numpyro_sample(
+#                 f"{date}_true_weight_mean",
+#                 dist.Normal,
+#                 ind_shape=(3,),
+#                 target_shape=3,
+#                 loc=true_weight_hyper_mean,
+#                 scale=true_weight_hyper_scale,
+#             )
 #             true_weight_scale = numpyro_sample(
 #                 "true_weight_scale",
 #                 dist.HalfNormal,
@@ -656,8 +656,8 @@ def generate_hierarchical_model(config):
                     dist.TransformedDistribution(
                         dist.Normal(jnp.zeros(3), 1).to_event(1),
                         dist.transforms.AffineTransform(
-                            true_weight_mean,
-                            true_weight_deviation_hyper,
+                            true_weight_hyper_mean,
+                            true_weight_hyper_scale,
                         ),
                     ),
                 )
