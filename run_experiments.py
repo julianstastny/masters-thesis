@@ -49,7 +49,7 @@ numpyro.set_host_device_count(8)
 
 # %%
 all_data = dataset.get_data(monkey_id=2, full_sessions_only=True)
-all_data = significance_test(all_data)
+# all_data = significance_test(all_data)
 # %%
 
 
@@ -61,10 +61,11 @@ dates = [datum['metadata']['datetime'] for datum in all_data]
 #print(idx)
 # %%
 data = [datum for datum in all_data if (datum['metadata']['significant_diff'] and datum['metadata']['stim_increases_avoidance'])]
+data = data[:20]
 # data = [datum for datum in all_data if (datum['metadata']['significant_diff'] and datum['metadata']['stim_increases_avoidance'])]#[0:NUM_SESSIONS]
 #data = all_data[idx:idx+1]
 NUM_SESSIONS=len(data)
-# assert NUM_SESSIONS == 
+# assert NUM_SESSIONS ==
 # %%
 session_lengths = [sum(datum['metadata']['datanums'].values()) for datum in data]
 
@@ -218,7 +219,7 @@ def run(config, name='', reuse_models=True, smoke_test=False):
             print('Successfully loaded MCMC object.')
             all_results_ema_model += [mcmc]
         except:
-            print(f'Fitting {name}.')
+            print(f'Fitting {name}, {i}, {dates[i]}')
             mcmc, idata = fit(model, 4, X=X_, stage=stage_, y=y_)
             az.to_netcdf(idata, f'output/{name}/idatas/session{dates[i]}.nc')
             with open(f'output/{name}/mcmcs/session{dates[i]}.pkl', 'wb') as f:
@@ -262,23 +263,56 @@ if __name__ == "__main__":
 
     if args.smoketest:
         print('Running smoketest!')
+    #
+    # config = copy.deepcopy(base_config)
+    # config['poisson_cdf_diminishing_perseverance'] = True
+    # config['perseverance_growth_rate']['shape'] = (1,)
+    # config['repetition_kernel']['shape'] = (1,)
+    # config['forget_rate']['shape'] = (1,)
+    # config['switch_scale'] = 0.0
+    # run(config, 'repetition_base_1param', smoke_test=args.smoketest)
+    #
+    # config = copy.deepcopy(base_config)
+    # config['poisson_cdf_diminishing_perseverance'] = False
+    # config['perseverance_growth_rate']['shape'] = ()
+    # config['repetition_kernel']['shape'] = ()
+    # config['forget_rate']['shape'] = ()
+    # config['switch_scale'] = 0.0
+    # run(config, 'baseline_no_repetition', smoke_test=args.smoketest)
 
     config = copy.deepcopy(base_config)
-    config['poisson_cdf_diminishing_perseverance'] = False
-    config['perseverance_growth_rate']['shape'] = ()
-    run(config, 'pgr0', smoke_test=args.smoketest)
-    config = copy.deepcopy(base_config)
-    config['perseverance_growth_rate']['shape'] = (1,)
-    run(config, 'pgr1', smoke_test=args.smoketest)
-    config = copy.deepcopy(base_config)
+    config['poisson_cdf_diminishing_perseverance'] = True
     config['perseverance_growth_rate']['shape'] = (2,)
-    run(config, 'pgr2', smoke_test=args.smoketest)
+    config['repetition_kernel']['shape'] = (2,)
+    config['forget_rate']['shape'] = (2,)
+    config['switch_scale'] = 0.0
+    run(config, 'repetition_posneg', smoke_test=args.smoketest)
+    #
     config = copy.deepcopy(base_config)
+    config['poisson_cdf_diminishing_perseverance'] = True
     config['perseverance_growth_rate']['shape'] = (3,)
-    run(config, 'pgr3', smoke_test=args.smoketest)
+    config['repetition_kernel']['shape'] = (3,)
+    config['forget_rate']['shape'] = (3,)
+    config['switch_scale'] = 0.0
+    run(config, 'repetition_stimdependent', smoke_test=args.smoketest)
+
     config = copy.deepcopy(base_config)
+    config['poisson_cdf_diminishing_perseverance'] = True
     config['perseverance_growth_rate']['shape'] = (3,2)
-    run(config, 'pgr32', smoke_test=args.smoketest)
+    config['repetition_kernel']['shape'] = (3,2)
+    config['forget_rate']['shape'] = (3,2)
+    config['switch_scale'] = 0.0
+    run(config, 'repetition_posneg_stimdependent', smoke_test=args.smoketest)
+
+    # config = copy.deepcopy(base_config)
+    # config['perseverance_growth_rate']['shape'] = (2,)
+    # run(config, 'pgr2', smoke_test=args.smoketest)
+    # config = copy.deepcopy(base_config)
+    # config['perseverance_growth_rate']['shape'] = (3,)
+    # run(config, 'pgr3', smoke_test=args.smoketest)
+    # config = copy.deepcopy(base_config)
+    # config['perseverance_growth_rate']['shape'] = (3,2)
+    # run(config, 'pgr32', smoke_test=args.smoketest)
 
     # config = copy.deepcopy(base_config)
     # config['perseverance_growth_rate']['shape'] = (2,)

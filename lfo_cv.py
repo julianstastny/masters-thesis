@@ -180,7 +180,7 @@ def compute_reloo(model, mcmc, **data_kwargs):
     num_warning = np.sum(loo_orig.pareto_k > 0.7)
     if num_warning > 0:
         print(f"Pareto-k over 0.7 for {num_warning} points.")
-        if num_warning <= 3:
+        if num_warning <= 3: #Should be 3!!!!!
             loo = az.reloo(numpyro_wrapper, loo_orig=loo_orig)
         else:
             print("Too many points over 0.7, refitting is expensive.")
