@@ -672,7 +672,7 @@ def generate_hierarchical_model(config):
                 "perseverance_growth_rate",
                 target_shape=(3, 2), date=date, scale=1
             )
-            perseverance_growth_rate = numpyro.deterministic("perseverance_growth_rate_scaled", perseverance_growth_rate * perseverance_growth_rate_hyper_scale)
+            perseverance_growth_rate = numpyro.deterministic(f"{date}_perseverance_growth_rate_scaled", perseverance_growth_rate * perseverance_growth_rate_hyper_scale)
             drift = numpyro_config_sample(
                 "drift",
                 target_shape=(3, 3), date=date, loc=drift_hyper_mean, scale=drift_hyper_scale
@@ -683,7 +683,7 @@ def generate_hierarchical_model(config):
 #             )
             switch_indicator = generate_switch_indicator(stage)
             forget_rate = numpyro_config_sample(
-                "forget_rate", 
+                "forget_rate",
                 target_shape=2, date=date, concentration0=forget_rate_hyper[0], concentration1=forget_rate_hyper[1]
             )
             mean_reversion = numpyro_config_sample(
@@ -728,14 +728,14 @@ def generate_hierarchical_model(config):
 #                     )
 #                 weight_curr = numpyro.sample(f"{date}_AR(1)",
 #                     dist.Normal(
-#                         mean_reversion[stage_curr] * weight_prev + drift[stage_curr], 
+#                         mean_reversion[stage_curr] * weight_prev + drift[stage_curr],
 #                         volatility * (1 - switch) + switch_scale * switch).to_event(1))
                 weight_curr = numpyro.sample(f"{date}_AR(1)_decentered", dist.Normal(jnp.zeros(3), 1).to_event(1))
                 weight_curr = numpyro.deterministic(
-                    f"{date}_AR(1)", 
+                    f"{date}_AR(1)",
                     weight_curr * (volatility * (1 - switch) + switch_scale * switch) + mean_reversion[stage_curr] * weight_prev + drift[stage_curr]
                 )
-    
+
                 weights_with_offset = numpyro.deterministic(
                     f"{date}_stimulated_weights", init_weight + weight_curr
                 )

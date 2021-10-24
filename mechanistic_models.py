@@ -148,27 +148,27 @@ hierarchical_mechanistic_base_config = {
         "params": {"scale": 10},
     },
     "perseverance_growth_rate": {
-        "shape": (3, 2),
+        "shape": (2,),
         "dist_type": dist.HalfNormal,
         "params": {"scale": 10},
     },
     "perseverance_growth_rate_hyper_scale": {
-        "shape": (3, 2),
+        "shape": (2,),
         "dist_type": dist.HalfNormal,
         "params": {"scale": 10},
     },
     "learning_rate_hyper": {
-        "shape": (2, 3, 3),
+        "shape": (3,),
         "dist_type": dist.HalfNormal,
-        "params": {"scale": 10},
+        "params": {"scale": 0.1},
     },
     "learning_rate": {
-        "shape": (3, 3),
-        "dist_type": dist.Beta,
-        "params": {"concentration0": 1.0, "concentration1": 1.0},
+        "shape": (3,),
+        "dist_type": dist.HalfNormal,
+        "params": {'scale': 0.1},
     },
     "init_weight_deviation_hyper": {
-        "shape": (3),
+        "shape": (3,),
         "dist_type": dist.HalfNormal,
         "params": {"scale": 1},
     },
@@ -183,12 +183,12 @@ hierarchical_mechanistic_base_config = {
         "params": {"scale": 10},
     },
     "lapse_prob": {
-        "shape": (3,),
+        "shape": (1,),
         "dist_type": dist.Uniform,
         "params": {"low": 0.0, "high": 1.0},
     },
     "approach_given_lapse": {
-        "shape": (3,),
+        "shape": (1,),
         "dist_type": dist.Uniform,
         "params": {"low": 0.0, "high": 1.0},
     },
@@ -533,7 +533,7 @@ def generate_hierarchical_mechanistic_model(config):
             target_shape=3,
             scale=1.0,
         )
-        learning_rate_hyper = numpyro_config_sample("learning_rate_hyper", target_shape=(2, 3, 3))
+        learning_rate_hyper = numpyro_config_sample("learning_rate_hyper", target_shape=(3,))
         lapse_prob = numpyro_config_sample(
             "lapse_prob",
             target_shape=(3,),
@@ -585,13 +585,14 @@ def generate_hierarchical_mechanistic_model(config):
 #         )
             switch_indicator = generate_switch_indicator(stage)
             forget_rate = numpyro_config_sample(
-                "forget_rate", 
+                "forget_rate",
                 target_shape=2, date=date, concentration0=forget_rate_hyper[0], concentration1=forget_rate_hyper[1]
             )
             learning_rate = numpyro_config_sample(
-                "learning_rate", 
-                target_shape=(3,3), date=date, concentration0=learning_rate_hyper[0], concentration1=learning_rate_hyper[1]
+                "learning_rate",
+                target_shape=(3), date=date, scale=1
             )
+            learning_rate = numpyro.deterministic(f"{date}_learning_rate_scaled", learning_rate * learning_rate_hyper)
 #             if y is not None:
 #                 for j in np.flatnonzero(y==-1):
 #                     y_j = numpyro.sample(f"y_null_{j}", dist.Bernoulli(0.5).mask(False))
