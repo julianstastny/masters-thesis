@@ -23,7 +23,7 @@ import numpy as np
 def fit(model, num_chains, num_warmup=1000, num_samples=1000, rng_seed=0, **kwargs):
     #     assert set(kwargs.keys()) <= set(model.__code__.co_varnames), model.__code__.co_varnames
     #     assert (('X' in kwargs.keys() or 'Xs' in kwargs.keys()) and ('y' in kwargs.keys()))
-    nuts_kernel = NUTS(model, adapt_step_size=True)
+    nuts_kernel = NUTS(model, adapt_step_size=True, init_strategy=numpyro.infer.init_to_sample)
     mcmc = MCMC(
         nuts_kernel,
         num_chains=num_chains,

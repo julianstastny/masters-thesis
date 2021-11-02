@@ -23,7 +23,7 @@ import numpy as np
 def fit(model, num_chains, num_warmup=1000, num_samples=1000, rng_seed=0, **kwargs):
     #     assert set(kwargs.keys()) <= set(model.__code__.co_varnames), model.__code__.co_varnames
     #     assert (('X' in kwargs.keys() or 'Xs' in kwargs.keys()) and ('y' in kwargs.keys()))
-    nuts_kernel = NUTS(model, adapt_step_size=True)
+    nuts_kernel = NUTS(model, adapt_step_size=True, init_strategy=numpyro.infer.init_to_sample)
     mcmc = MCMC(
         nuts_kernel,
         num_chains=num_chains,
@@ -383,12 +383,14 @@ def generate_mechanistic_model(config):
                 (1 - lapse_prob[stage_curr]) * jax.nn.sigmoid(logit)
                 + lapse_prob[stage_curr] * approach_given_lapse[stage_curr],
             )
+            print(prob_with_lapse.shape)
             obs = numpyro.sample(
                 "y", dist.Bernoulli(probs=clamp_probs(prob_with_lapse)), obs=y_curr
             )
             # ====Mechanistic part====
             true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + true_weight_mean[stage_curr][2]
-            delta = numpyro.deterministic("delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
+            delta = numpyro.deterministic("delta", (utility - true_utility) * x_curr * prob_with_lapse) # * obs because this update can only happen if approach happened
+#             delta = numpyro.deterministic("delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
             print(delta)
 #             with numpyro.handlers.reparam(config={"AR(1) with learning": TransformReparam()}):
 #                 new_weights = numpyro.sample(
@@ -636,7 +638,8 @@ def generate_hierarchical_mechanistic_model(config):
                 )
                 # ====Mechanistic part====
                 true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + true_weight_mean[stage_curr][2]
-                delta = numpyro.deterministic(f"{date}_delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
+                delta = numpyro.deterministic(f"{date}_delta", (utility - true_utility) * x_curr * prob_with_lapse) # * obs because this update can only happen if approach happened
+#                 delta = numpyro.deterministic(f"{date}_delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
 #                 print(delta)
     #             with numpyro.handlers.reparam(config={"AR(1) with learning": TransformReparam()}):
     #                 new_weights = numpyro.sample(
