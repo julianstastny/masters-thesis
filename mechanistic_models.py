@@ -638,7 +638,7 @@ def generate_hierarchical_mechanistic_model(config):
                 )
                 # ====Mechanistic part====
                 true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + true_weight_mean[stage_curr][2]
-                delta = numpyro.deterministic(f"{date}_delta", (utility - true_utility) * x_curr * prob_with_lapse) # * obs because this update can only happen if approach happened
+                delta = numpyro.deterministic(f"{date}_delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
 #                 delta = numpyro.deterministic(f"{date}_delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
 #                 print(delta)
     #             with numpyro.handlers.reparam(config={"AR(1) with learning": TransformReparam()}):
