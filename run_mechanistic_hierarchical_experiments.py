@@ -33,7 +33,8 @@ import plotly.express as px
 
 
 from models import fit
-from models import generate_hierarchical_model
+from mechanistic_models import generate_hierarchical_mechanistic_model
+from mechanistic_models import hierarchical_mechanistic_base_config as base_config
 from lfo_cv import compute_reloo
 
 import os
@@ -133,94 +134,6 @@ print(y.shape)
 #     rep_0_2 = _y_prev + _y
 
 
-
-base_config = {
-    "volatility": {
-        "shape": (3,),
-        "dist_type": dist.HalfNormal,
-        "params": {"scale": 0.1},
-    },
-    "volatility_hyper_scale": {
-        "shape": (3,),
-        "dist_type": dist.HalfNormal,
-        "params": {"scale": 1},
-    },
-    "repetition_kernel": {
-        "shape": (3, 2),
-        "dist_type": dist.Normal,
-        "params": {"loc": 0.0, "scale": 10},
-    },
-    "repetition_kernel_hyper_mean": {
-        "shape": (3, 2),
-        "dist_type": dist.Normal,
-        "params": {"loc": 0.0, "scale": 10},
-    },
-    "repetition_kernel_hyper_scale": {
-        "shape": (3, 2),
-        "dist_type": dist.HalfNormal,
-        "params": {"scale": 10},
-    },
-    "drift": {
-        "shape": (3, 3),
-        "dist_type": dist.Normal,
-        "params": {"loc": 0.0, "scale": 0.1},
-    },
-    "drift_hyper_mean": {
-        "shape": (3, 3),
-        "dist_type": dist.Normal,
-        "params": {"loc": 0.0, "scale": 0.1},
-    },
-    "drift_hyper_scale": {
-        "shape": (3, 3),
-        "dist_type": dist.HalfNormal,
-        "params": {"scale": 0.1},
-    },
-    "perseverance_growth_rate": {
-        "shape": (3, 2),
-        "dist_type": dist.HalfNormal,
-        "params": {"scale": 10},
-    },
-    "perseverance_growth_rate_hyper_scale": {
-        "shape": (3, 2),
-        "dist_type": dist.HalfNormal,
-        "params": {"scale": 10},
-    },
-    "forget_rate": {
-        "shape": (2,),
-        "dist_type": dist.Beta,
-        "params": {"concentration0": 1.0, "concentration1": 1.0},
-    },
-    "forget_rate_hyper": {
-        "shape": (2,),
-        "dist_type": dist.HalfNormal,
-        "params": {"scale": 10},
-    },
-    "mean_reversion_hyper": {
-        "shape": (2,),
-        "dist_type": dist.HalfNormal,
-        "params": {"scale": 10},
-    },
-    "mean_reversion": {
-        "shape": (3,),
-        "dist_type": dist.Beta,
-        "params": {"concentration0": 1.0, "concentration1": 1.0},
-    },
-    "lapse_prob": {
-        "shape": (3,),
-        "dist_type": dist.Uniform,
-        "params": {"low": 0.0, "high": 1.0},
-    },
-    "approach_given_lapse": {
-        "shape": (3,),
-        "dist_type": dist.Uniform,
-        "params": {"low": 0.0, "high": 1.0},
-    },
-    "switch_scale": 1.0,
-    "saturating_ema": False,
-    "poisson_cdf_diminishing_perseverance": True
-}
-
-
 def run(config, name='', reuse_models=True, smoke_test=False):
 
 #     config_hash = abs(hash(str(config)))
@@ -245,8 +158,8 @@ def run(config, name='', reuse_models=True, smoke_test=False):
     with open(f'output/dates.pkl', 'wb') as f:
         pickle.dump(dates, f, pickle.HIGHEST_PROTOCOL)
 
-    hierarchical_model = generate_hierarchical_model(base_config)
-    params_with_scale = ['repetition_kernel', 'drift']
+    hierarchical_model = generate_hierarchical_mechanistic_model(config)
+    params_with_scale = ['repetition_kernel']
     reparam_config = {key: LocScaleReparam(0) for key in [f"{date}_{param}" for date in str_dates for param in params_with_scale]}
     hierarchical_model = reparam(hierarchical_model, config=reparam_config)
 
@@ -258,8 +171,6 @@ def run(config, name='', reuse_models=True, smoke_test=False):
     az.to_netcdf(idata, f'output/{name}/idata.nc')
     with open(f'output/{name}/mcmc.pkl', 'wb') as f:
         pickle.dump(mcmc, f, pickle.HIGHEST_PROTOCOL)
-
-
 #     for i, mcmc in enumerate(all_results_ema_model):
 
 #         idata = az.from_numpyro(mcmc)
@@ -301,7 +212,7 @@ if __name__ == "__main__":
     # config['repetition_kernel']['shape'] = (1,)
     # config['forget_rate']['shape'] = (1,)
     # config['switch_scale'] = 0.0
-    run(config, 'baseline_standard', smoke_test=args.smoketest)
+    run(config, 'baseline_mechanistic', smoke_test=args.smoketest)
     #
     # config = copy.deepcopy(base_config)
     # config['poisson_cdf_diminishing_perseverance'] = False

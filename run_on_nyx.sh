@@ -11,7 +11,7 @@
 # Each node has 16 or 20 CPU cores.
 #SBATCH --nodes=1
 ##SBATCH --exclusive
-#SBATCH --ntasks=10
+#SBATCH --ntasks=16
 # You can further define the number of tasks with --ntasks-per-*
 # See "man sbatch" for details. e.g. --ntasks=4 will ask for 4 cpus.
 
@@ -62,10 +62,12 @@ cp ${SLURM_SUBMIT_DIR}/*.pkl ${SCRATCH_DIRECTORY}
 
 # singularity exec /home/jstastny/numpyro_latest.sif echo "which python" | bash && cd ${SCRATCH_DIRECTORY} && python3 run_experiments.py
 # singularity shell /home/jstastny/numpyro_latest.sif -c "bash && cd ${SCRATCH_DIRECTORY} && python3 run_experiments.py &> stdout && /bin/bash -norc"
-singularity exec /home/jstastny/numpyro_latest.sif bash -s <<< "bash && cd ${SCRATCH_DIRECTORY} && python3 run_mechanistic_experiments.py --no-smoketest"
+# singularity exec /home/jstastny/numpyro_latest.sif bash -s <<< "bash && cd ${SCRATCH_DIRECTORY} && python3 run_mechanistic_experiments.py --no-smoketest"
+# singularity exec /home/jstastny/numpyro_latest.sif bash -s <<< "bash && cd ${SCRATCH_DIRECTORY} && python3 run_hierarchical_experiments.py --no-smoketest"
+singularity exec /home/jstastny/numpyro_latest.sif bash -s <<< "bash && cd ${SCRATCH_DIRECTORY} && python3 run_mechanistic_hierarchical_experiments.py --no-smoketest"
 # singularity exec /home/jstastny/numpyro_latest.sif bash -s <<< "bash && cd ${SCRATCH_DIRECTORY} && python3 compute_accuracies.py"
 #singularity exec /home/jstastny/numpyro_latest.sif bash -e "python3 ${SCRATCH_DIRECTORY}/run_experiments.py"
-# conda list
+# conda lists
 # python3 ${SCRATCH_DIRECTORY}/run_experiments.py
 #sleep 10
 
