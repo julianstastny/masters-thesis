@@ -184,8 +184,8 @@ hierarchical_mechanistic_base_config = {
     },
     "lapse_prob": {
         "shape": (1,),
-        "dist_type": dist.Uniform,
-        "params": {"low": 0.0, "high": 1.0},
+        "dist_type": dist.Beta,
+        "params": {"concentration0": 10.0, "concentration1": 1.0},
     },
     "approach_given_lapse": {
         "shape": (1,),
@@ -196,6 +196,8 @@ hierarchical_mechanistic_base_config = {
     "saturating_ema": False,
     "poisson_cdf_diminishing_perseverance": True
 }
+
+
 def generate_mechanistic_model(config):
     assert not (config['saturating_ema'] and config['poisson_cdf_diminishing_perseverance'])
 #     switch_scale = config['switch_scale']
