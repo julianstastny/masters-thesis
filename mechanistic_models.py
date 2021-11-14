@@ -471,11 +471,19 @@ def generate_hierarchical_mechanistic_model(config):
 
     def model(X_sep, stage_sep, y_sep=None, str_dates=None):
 
+#         true_weight_hyper_mean = numpyro_sample(
+#             "true_weight_hyper_mean",
+#             dist.Normal,
+#             ind_shape=(3,3),
+#             target_shape=(3,3),
+#             loc=0.0,
+#             scale=1.0,
+#         )
         true_weight_hyper_mean = numpyro_sample(
             "true_weight_hyper_mean",
             dist.Normal,
-            ind_shape=(3,3),
-            target_shape=(3,3),
+            ind_shape=(3,),
+            target_shape=(3,),
             loc=0.0,
             scale=1.0,
         )
@@ -486,36 +494,13 @@ def generate_hierarchical_mechanistic_model(config):
             target_shape=(3,3),
             scale=1.0,
         )
-#         true_weight_mean_0 = numpyro_sample('true_weight_mean_nostim', dist.Normal, (3,), (1, 3))
-#         with numpyro.handlers.reparam(config={"true_weight_mean_stim": TransformReparam()}):
-#             true_weight_mean_1 = numpyro.sample(
-#                 "true_weight_mean_stim",
-#                 dist.TransformedDistribution(
-#                     dist.Normal(0, 1).expand((1,3)).to_event(1),
-#                     dist.transforms.AffineTransform(
-#                         true_weight_mean_0,
-#                         1
-#                     ),
-#                 ),
-#             )
-#         if True:
-#             true_weight_mean_2 = numpyro.deterministic("true_weight_mean_resid", true_weight_mean_0)
-#         else:
-#             with numpyro.handlers.reparam(config={"true_weight_mean_resid": TransformReparam()}):
-#                 true_weight_mean_2 = numpyro.sample(
-#                     "true_weight_mean_resid",
-#                     dist.TransformedDistribution(
-#                         dist.Normal(0, 1).expand((1,3)).to_event(1),
-#                         dist.transforms.AffineTransform(
-#                             true_weight_mean_1,
-#                             1
-#                         ),
-#                     ),
-#                 )
-#         # true_weight_mean += [jnp.expand_dims(true_weight_mean_i, 0)]
-#         true_weight_mean = jnp.concatenate([true_weight_mean_0, true_weight_mean_1, true_weight_mean_2], axis=0)
-
-#         volatility = numpyro_config_sample("volatility", target_shape=3)
+        init_weight_deviation_hyper = numpyro_sample(
+            "init_weight_deviation_hyper",
+            dist.HalfNormal,
+            ind_shape=(3,),
+            target_shape=3,
+            scale=1.0,
+        )
         repetition_kernel_hyper_mean = numpyro_config_sample(
             "repetition_kernel_hyper_mean", target_shape=(3, 2)
         )
@@ -530,13 +515,7 @@ def generate_hierarchical_mechanistic_model(config):
             "forget_rate_hyper",
             target_shape=2,
         )
-        init_weight_deviation_hyper = numpyro_sample(
-            "init_weight_deviation_hyper",
-            dist.HalfNormal,
-            ind_shape=(3,),
-            target_shape=3,
-            scale=1.0,
-        )
+
         learning_rate_hyper = numpyro_config_sample("learning_rate_hyper", target_shape=(3,))
         lapse_prob = numpyro_config_sample(
             "lapse_prob",
@@ -546,27 +525,62 @@ def generate_hierarchical_mechanistic_model(config):
             "approach_given_lapse",
             target_shape=(3,),
         )
-#         learning_rate = numpyro_config_sample("learning_rate", target_shape=(3, 3))
         for X, stage, y, date in zip(X_sep, stage_sep, y_sep, str_dates):
             X = np.concatenate((X, np.ones((X.shape[0],1))),axis=1)
-            with numpyro.handlers.reparam(config={f"{date}_true_weight": TransformReparam()}):
-                true_weight_mean = numpyro.sample(
-                    f"{date}_true_weight",
+#             with numpyro.handlers.reparam(config={f"{date}_true_weight": TransformReparam()}):
+#                 true_weight_mean = numpyro.sample(
+#                     f"{date}_true_weight",
+#                     dist.TransformedDistribution(
+#                         dist.Normal(jnp.zeros((3,3)), 1).to_event(1),
+#                         dist.transforms.AffineTransform(
+#                             true_weight_hyper_mean,
+#                             true_weight_hyper_scale,
+#                         ),
+#                     ),
+#                 ) # Old setting
+            with numpyro.handlers.reparam(config={f"{date}_true_weight_nostim": TransformReparam()}):
+                true_weight_nostim = numpyro.sample(
+                    f"{date}_true_weight_nostim",
                     dist.TransformedDistribution(
-                        dist.Normal(jnp.zeros((3,3)), 1).to_event(1),
+                        dist.Normal(0, 1).expand((1,3)).to_event(1),
                         dist.transforms.AffineTransform(
                             true_weight_hyper_mean,
-                            true_weight_hyper_scale,
+                            true_weight_hyper_scale[0],
+                        ),
+                    ),
+                ) 
+            with numpyro.handlers.reparam(config={f"{date}_true_weight_stim": TransformReparam()}):
+                true_weight_stim = numpyro.sample(
+                    f"{date}_true_weight_stim",
+                    dist.TransformedDistribution(
+                        dist.Normal(0, 1).expand((1,3)).to_event(1),
+                        dist.transforms.AffineTransform(
+                            true_weight_nostim,
+                            true_weight_hyper_scale[1],
                         ),
                     ),
                 )
+            with numpyro.handlers.reparam(config={f"{date}_true_weight_resid": TransformReparam()}):
+                true_weight_resid = numpyro.sample(
+                    f"{date}_true_weight_resid",
+                    dist.TransformedDistribution(
+                        dist.Normal(0, 1).expand((1,3)).to_event(1),
+                        dist.transforms.AffineTransform(
+                            true_weight_stim,
+                            true_weight_hyper_scale[2],
+                        ),
+                    ),
+                )
+            true_weight_mean = jnp.concatenate([true_weight_nostim, true_weight_stim, true_weight_resid], axis=0)
+#             print(true_weight_mean.shape)
+
             with numpyro.handlers.reparam(config={f"{date}_initial_weight": TransformReparam()}):
                 init_weight = numpyro.sample(
                     f"{date}_initial_weight",
                     dist.TransformedDistribution(
                         dist.Normal(jnp.zeros(3), 1).to_event(1),
                         dist.transforms.AffineTransform(
-                            true_weight_mean[0],
+                            true_weight_nostim[0],
                             init_weight_deviation_hyper,
                         ),
                     ),
@@ -579,14 +593,6 @@ def generate_hierarchical_mechanistic_model(config):
                 target_shape=(3, 2), date=date, scale=1
             )
             perseverance_growth_rate = numpyro.deterministic(f"{date}_perseverance_growth_rate_scaled", perseverance_growth_rate * perseverance_growth_rate_hyper_scale)
-#         drift = numpyro_config_sample(
-#             "drift",
-#             target_shape=(3, 3),
-#         )
-#         stimulation_immediate = numpyro_config_sample(
-#             "stimulation_immediate",
-#             target_shape=(3, 3),
-#         )
             switch_indicator = generate_switch_indicator(stage)
             forget_rate = numpyro_config_sample(
                 "forget_rate",
@@ -597,13 +603,8 @@ def generate_hierarchical_mechanistic_model(config):
                 target_shape=(3), date=date, scale=1
             )
             learning_rate = numpyro.deterministic(f"{date}_learning_rate_scaled", learning_rate * learning_rate_hyper)
-#             if y is not None:
-#                 for j in np.flatnonzero(y==-1):
-#                     y_j = numpyro.sample(f"y_null_{j}", dist.Bernoulli(0.5).mask(False))
-#                     y = jax.ops.index_update(y, j, y_j)
-
+            
             def transition(carry, xs):
-    #             weight_prev, ema_pos_prev, ema_neg_prev, y_prev, ar_1_prev = carry
                 weight_prev, ema_pos_prev, ema_neg_prev, y_prev = carry
                 stage_curr, switch, x_curr, y_curr = xs
                 weight_with_offset = numpyro.deterministic(f"{date}_stimulated_weights", init_weight + weight_prev)
@@ -641,20 +642,6 @@ def generate_hierarchical_mechanistic_model(config):
                 # ====Mechanistic part====
                 true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + true_weight_mean[stage_curr][2]
                 delta = numpyro.deterministic(f"{date}_delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
-#                 delta = numpyro.deterministic(f"{date}_delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
-#                 print(delta)
-    #             with numpyro.handlers.reparam(config={"AR(1) with learning": TransformReparam()}):
-    #                 new_weights = numpyro.sample(
-    #                     "AR(1) with learning",
-    #                     dist.TransformedDistribution(
-    #                         dist.Normal(jnp.zeros(3), 1).to_event(1),
-    #                         dist.transforms.AffineTransform(
-    #                             (1 - inverse_mean_reversion[stage_curr]) * weight_prev
-    #                             - learning_rate[stage_curr] * delta,
-    #                             volatility * (1 - switch) + switch_scale * switch,
-    #                         ),
-    #                     ),
-    #                 )
                 new_weights = numpyro.deterministic(
                     f"{date}_AR(1) with learning",
                     weight_prev - learning_rate[stage_curr] * delta)
@@ -662,8 +649,6 @@ def generate_hierarchical_mechanistic_model(config):
 
             _, (obs) = scan(
                 transition,
-                #             (init_weight, np.array([ema_pos_init]), np.array([ema_neg_init]), np.array([y_prev_init])),
-    #             (np.zeros(3), 0.5, 0.5, -1, jnp.zeros(3)),
                 (np.zeros(3), 0.5, 0.5, -1),
                 (stage, switch_indicator, X, y),
                 length=len(X),
