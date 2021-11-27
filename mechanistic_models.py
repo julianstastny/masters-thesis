@@ -143,9 +143,9 @@ hierarchical_mechanistic_base_config = {
         "params": {"loc": 0.0, "scale": 10},
     },
     "repetition_kernel_hyper_scale": {
-        "shape": (3, 2),
+        "shape": (1,),
         "dist_type": dist.HalfNormal,
-        "params": {"scale": 10},
+        "params": {"scale": 2},
     },
     "perseverance_growth_rate": {
         "shape": (2,),
@@ -391,7 +391,7 @@ def generate_mechanistic_model(config):
             )
             # ====Mechanistic part====
             true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + true_weight_mean[stage_curr][2]
-            delta = numpyro.deterministic("delta", (utility - true_utility) * x_curr * prob_with_lapse) # * obs because this update can only happen if approach happened
+            delta = numpyro.deterministic("delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
 #             delta = numpyro.deterministic("delta", (utility - true_utility) * x_curr * obs) # * obs because this update can only happen if approach happened
             print(delta)
 #             with numpyro.handlers.reparam(config={"AR(1) with learning": TransformReparam()}):
@@ -485,21 +485,23 @@ def generate_hierarchical_mechanistic_model(config):
             ind_shape=(3,),
             target_shape=(3,),
             loc=0.0,
-            scale=1.0,
+            scale=5.0,
         )
+        true_weight_hyper_mean = jax.ops.index_update(true_weight_hyper_mean, 2, 0)
         true_weight_hyper_scale = numpyro_sample(
             "true_weight_hyper_scale",
             dist.HalfNormal,
+            # ind_shape=(1,3),
             ind_shape=(3,3),
             target_shape=(3,3),
-            scale=1.0,
+            scale=5.0,
         )
         init_weight_deviation_hyper = numpyro_sample(
             "init_weight_deviation_hyper",
             dist.HalfNormal,
             ind_shape=(3,),
             target_shape=3,
-            scale=1.0,
+            scale=5.0,
         )
         repetition_kernel_hyper_mean = numpyro_config_sample(
             "repetition_kernel_hyper_mean", target_shape=(3, 2)
@@ -511,20 +513,26 @@ def generate_hierarchical_mechanistic_model(config):
             "perseverance_growth_rate_hyper_scale",
             target_shape=(3, 2),
         )
-        forget_rate_hyper = numpyro_config_sample(
-            "forget_rate_hyper",
+        # forget_rate_hyper = numpyro_config_sample(
+        #     "forget_rate_hyper",
+        #     target_shape=2,
+        # )
+        forget_rate = numpyro_config_sample(
+            "forget_rate",
             target_shape=2,
         )
 
-        learning_rate_hyper = numpyro_config_sample("learning_rate_hyper", target_shape=(3,))
+        learning_rate_hyper_1 = numpyro_config_sample("learning_rate_hyper", target_shape=(3,), scale=1)
+        learning_rate_hyper = learning_rate_hyper_1 * config['learning_rate_hyper']['params']['scale']
         lapse_prob = numpyro_config_sample(
             "lapse_prob",
             target_shape=(3,),
         )
-        approach_given_lapse = numpyro_config_sample(
-            "approach_given_lapse",
-            target_shape=(3,),
-        )
+        # approach_given_lapse = numpyro_config_sample(
+        #     "approach_given_lapse",
+        #     target_shape=(3,),
+        # )
+        approach_given_lapse = jnp.array([0.5, 0.5, 0.5])
         for X, stage, y, date in zip(X_sep, stage_sep, y_sep, str_dates):
             X = np.concatenate((X, np.ones((X.shape[0],1))),axis=1)
 #             with numpyro.handlers.reparam(config={f"{date}_true_weight": TransformReparam()}):
@@ -548,7 +556,7 @@ def generate_hierarchical_mechanistic_model(config):
                             true_weight_hyper_scale[0],
                         ),
                     ),
-                ) 
+                )
             with numpyro.handlers.reparam(config={f"{date}_true_weight_stim": TransformReparam()}):
                 true_weight_stim = numpyro.sample(
                     f"{date}_true_weight_stim",
@@ -588,22 +596,23 @@ def generate_hierarchical_mechanistic_model(config):
             repetition_kernel = numpyro_config_sample(
                 "repetition_kernel", target_shape=(3, 2), date=date, loc=repetition_kernel_hyper_mean, scale=repetition_kernel_hyper_scale
             )
-            perseverance_growth_rate = numpyro_config_sample(
-                "perseverance_growth_rate",
-                target_shape=(3, 2), date=date, scale=1
-            )
-            perseverance_growth_rate = numpyro.deterministic(f"{date}_perseverance_growth_rate_scaled", perseverance_growth_rate * perseverance_growth_rate_hyper_scale)
+            # perseverance_growth_rate = numpyro_config_sample(
+            #     "perseverance_growth_rate",
+            #     target_shape=(3, 2), date=date, scale=1
+            # )
+            # perseverance_growth_rate = numpyro.deterministic(f"{date}_perseverance_growth_rate_scaled", perseverance_growth_rate * perseverance_growth_rate_hyper_scale)
+            perseverance_growth_rate = numpyro.deterministic(f"{date}_perseverance_growth_rate_scaled", perseverance_growth_rate_hyper_scale)
             switch_indicator = generate_switch_indicator(stage)
-            forget_rate = numpyro_config_sample(
-                "forget_rate",
-                target_shape=2, date=date, concentration0=forget_rate_hyper[0], concentration1=forget_rate_hyper[1]
-            )
+            # forget_rate = numpyro_config_sample(
+            #     "forget_rate",
+            #     target_shape=2, date=date, concentration0=forget_rate_hyper[0], concentration1=forget_rate_hyper[1]
+            # )
             learning_rate = numpyro_config_sample(
                 "learning_rate",
                 target_shape=(3), date=date, scale=1
             )
             learning_rate = numpyro.deterministic(f"{date}_learning_rate_scaled", learning_rate * learning_rate_hyper)
-            
+
             def transition(carry, xs):
                 weight_prev, ema_pos_prev, ema_neg_prev, y_prev = carry
                 stage_curr, switch, x_curr, y_curr = xs
