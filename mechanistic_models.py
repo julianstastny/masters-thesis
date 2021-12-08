@@ -334,15 +334,17 @@ def generate_hierarchical_mechanistic_model(config):
             )
             perseverance_init = numpyro.sample(f"{date}_perseverance_init", dist.Normal(0,1)) / (1-forget_rate) # divide by forget-rate because we do not "forget" anything
             def transition(carry, xs):
-                weight_prev, x_prev, perseverance_prev, y_prev = carry
+                weight_prev, x_prev, perseverance_prev, true_utility_prev, y_prev = carry
                 stage_curr, switch, x_curr, y_curr = xs
                 weight_with_offset = numpyro.deterministic(f"{date}_stimulated_weights", init_weight + weight_prev)
                 utility = x_curr[0] * weight_with_offset[0] + x_curr[1] * weight_with_offset[1] + weight_with_offset[2]
                 prob_given_stimulus = numpyro.deterministic(f"{date}_probs_given_stimulus", jax.nn.sigmoid(utility))
+#                 perseverance_curr = (
+#                     (1-forget_rate) * perseverance_prev + forget_rate * repetition_kernel[stage_curr,0] * x_prev[0] + repetition_kernel[stage_curr,1] * x_prev[1]
+#                 )
                 perseverance_curr = (
-                    (1-forget_rate) * perseverance_prev + forget_rate * repetition_kernel[stage_curr,0] * x_prev[0] + repetition_kernel[stage_curr,1] * x_prev[1]
-                )
-                
+                    (1-forget_rate) * perseverance_prev + forget_rate * true_utility_prev
+                )              
 #                 print(perseverance_curr.shape)
                 prob_given_perseverance = numpyro.deterministic(f"{date}_probs_given_perseverance", jax.nn.sigmoid(perseverance_curr))
                 prob_mixture = (1-perseverance_weight[stage_curr]) * prob_given_stimulus + perseverance_weight[stage_curr] * prob_given_perseverance
@@ -360,11 +362,11 @@ def generate_hierarchical_mechanistic_model(config):
                 new_weights = numpyro.deterministic(
                     f"{date}_AR(1) with learning",
                     weight_prev - learning_rate[stage_curr] * delta) #TODO: Maybe weigh this update with perseverance_weight?
-                return (new_weights, x_curr, perseverance_curr, obs), (obs)
+                return (new_weights, x_curr, perseverance_curr, true_utility, obs), (obs)
 
             _, (obs) = scan(
                 transition,
-                (np.zeros(3), np.zeros(3), perseverance_init, -1),
+                (np.zeros(3), np.zeros(3), perseverance_init, 0.0, -1),
                 (stage, switch_indicator, X, y),
                 length=len(X),
             )
