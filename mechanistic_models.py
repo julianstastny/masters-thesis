@@ -130,6 +130,16 @@ hierarchical_mechanistic_base_config = {
         "dist_type": dist.HalfNormal,
         "params": {"scale": 10},
     },
+    "rtm_scale_hyper": {
+        "shape": (3,),
+        "dist_type": dist.HalfNormal,
+        "params": {"scale": 1},
+    },
+    "rtm": {
+        "shape": (3,),
+        "dist_type": dist.HalfNormal,
+        "params": {"scale": 1},
+    },
     "lapse_prob": {
         "shape": (1,),
         "dist_type": dist.Beta,
@@ -230,6 +240,7 @@ def generate_hierarchical_mechanistic_model(config):
 
         learning_rate_hyper_1 = numpyro_config_sample("learning_rate_hyper", target_shape=(3,), scale=1)
         learning_rate_hyper = learning_rate_hyper_1 * config['learning_rate_hyper']['params']['scale']
+        rtm_scale_hyper = numpyro_config_sample("rtm_scale_hyper", target_shape=3)
 #         lapse_prob = numpyro_config_sample(
 #             "lapse_prob",
 #             target_shape=(3,),
@@ -332,19 +343,22 @@ def generate_hierarchical_mechanistic_model(config):
                 target_shape=3,
                 date=date
             )
-            perseverance_init = numpyro.sample(f"{date}_perseverance_init", dist.Normal(0,1)) / (1-forget_rate) # divide by forget-rate because we do not "forget" anything
+            perseverance_init = numpyro.sample(f"{date}_perseverance_init", dist.Normal(0,1))
+            rtm = numpyro_config_sample(
+                "rtm",
+                target_shape=3,
+                date=date,
+                scale=rtm_scale_hyper
+            )
             def transition(carry, xs):
-                weight_prev, x_prev, perseverance_prev, true_utility_prev, y_prev = carry
+                weight_prev, x_prev, perseverance_curr, true_utility_prev, y_prev = carry
                 stage_curr, switch, x_curr, y_curr = xs
                 weight_with_offset = numpyro.deterministic(f"{date}_stimulated_weights", init_weight + weight_prev)
                 utility = x_curr[0] * weight_with_offset[0] + x_curr[1] * weight_with_offset[1] + weight_with_offset[2]
                 prob_given_stimulus = numpyro.deterministic(f"{date}_probs_given_stimulus", jax.nn.sigmoid(utility))
 #                 perseverance_curr = (
 #                     (1-forget_rate) * perseverance_prev + forget_rate * repetition_kernel[stage_curr,0] * x_prev[0] + repetition_kernel[stage_curr,1] * x_prev[1]
-#                 )
-                perseverance_curr = (
-                    (1-forget_rate) * perseverance_prev + forget_rate * true_utility_prev
-                )              
+#                 )         
 #                 print(perseverance_curr.shape)
                 prob_given_perseverance = numpyro.deterministic(f"{date}_probs_given_perseverance", jax.nn.sigmoid(perseverance_curr))
                 prob_mixture = (1-perseverance_weight[stage_curr]) * prob_given_stimulus + perseverance_weight[stage_curr] * prob_given_perseverance
@@ -362,7 +376,10 @@ def generate_hierarchical_mechanistic_model(config):
                 new_weights = numpyro.deterministic(
                     f"{date}_AR(1) with learning",
                     weight_prev - learning_rate[stage_curr] * delta) #TODO: Maybe weigh this update with perseverance_weight?
-                return (new_weights, x_curr, perseverance_curr, true_utility, obs), (obs)
+                perseverance_next = (
+                    (1-forget_rate) * perseverance_curr + forget_rate * (obs * true_utility_prev + (1-obs) * rtm[stage_curr] * perseverance_curr)
+                )
+                return (new_weights, x_curr, perseverance_next, true_utility, obs), (obs)
 
             _, (obs) = scan(
                 transition,
