@@ -76,12 +76,12 @@ def _numpyro_config_sample(name, config, target_shape, date=None, **kwargs):
 
 hierarchical_mechanistic_base_config = {
     "repetition_kernel": {
-        "shape": (3, 2),
+        "shape": (3,),
         "dist_type": dist.Normal,
         "params": {"loc": 0.0, "scale": 10},
     },
     "repetition_kernel_hyper_mean": {
-        "shape": (3, 2),
+        "shape": (3,),
         "dist_type": dist.Normal,
         "params": {"loc": 0.0, "scale": 10},
     },
@@ -229,24 +229,24 @@ def generate_hierarchical_mechanistic_model(config):
             scale=5.0,
         )
         repetition_kernel_hyper_mean = numpyro_config_sample(
-            "repetition_kernel_hyper_mean", target_shape=(3, 2)
+            "repetition_kernel_hyper_mean", target_shape=3
         )
 #         repetition_kernel_hyper_mean = jnp.cumsum(repetition_kernel_hyper_mean, axis=0)
         repetition_kernel_hyper_scale = numpyro_config_sample(
-            "repetition_kernel_hyper_scale", target_shape=(3, 2)
+            "repetition_kernel_hyper_scale", target_shape=3
         )
-        perseverance_growth_rate_hyper_scale = numpyro_config_sample(
-            "perseverance_growth_rate_hyper_scale",
-            target_shape=(3, 2),
+#         perseverance_growth_rate_hyper_scale = numpyro_config_sample(
+#             "perseverance_growth_rate_hyper_scale",
+#             target_shape=(3, 2),
+#         )
+        forget_rate_hyper = numpyro_config_sample(
+            "forget_rate_hyper",
+            target_shape=2,
         )
-        # forget_rate_hyper = numpyro_config_sample(
-        #     "forget_rate_hyper",
-        #     target_shape=2,
-        # )
-        forget_rate = numpyro_config_sample(
-            "forget_rate",
-            target_shape=(),
-        )
+#         forget_rate = numpyro_config_sample(
+#             "forget_rate",
+#             target_shape=3,
+#         )
 
         learning_rate_hyper_1 = numpyro_config_sample("learning_rate_hyper", target_shape=(3,), scale=1)
         learning_rate_hyper = learning_rate_hyper_1 * config['learning_rate_hyper']['params']['scale']
@@ -254,7 +254,7 @@ def generate_hierarchical_mechanistic_model(config):
         perseverance_learning_rate_hyper_1 = numpyro_config_sample("perseverance_learning_rate_hyper", target_shape=(3,), scale=1)
         perseverance_learning_rate_hyper = perseverance_learning_rate_hyper_1 * config['perseverance_learning_rate_hyper']['params']['scale']
         
-        rtm_scale_hyper = numpyro_config_sample("rtm_scale_hyper", target_shape=3)
+#         rtm_scale_hyper = numpyro_config_sample("rtm_scale_hyper", target_shape=3)
 #         lapse_prob = numpyro_config_sample(
 #             "lapse_prob",
 #             target_shape=(3,),
@@ -325,7 +325,7 @@ def generate_hierarchical_mechanistic_model(config):
                     ),
                 )
             repetition_kernel = numpyro_config_sample(
-                "repetition_kernel", target_shape=(3, 2), date=date, loc=repetition_kernel_hyper_mean, scale=repetition_kernel_hyper_scale
+                "repetition_kernel", target_shape=3, date=date, loc=repetition_kernel_hyper_mean, scale=repetition_kernel_hyper_scale
             )
             # perseverance_growth_rate = numpyro_config_sample(
             #     "perseverance_growth_rate",
@@ -334,10 +334,10 @@ def generate_hierarchical_mechanistic_model(config):
             # perseverance_growth_rate = numpyro.deterministic(f"{date}_perseverance_growth_rate_scaled", perseverance_growth_rate * perseverance_growth_rate_hyper_scale)
 #             perseverance_growth_rate = numpyro.deterministic(f"{date}_perseverance_growth_rate_scaled", perseverance_growth_rate_hyper_scale)
             switch_indicator = generate_switch_indicator(stage)
-            # forget_rate = numpyro_config_sample(
-            #     "forget_rate",
-            #     target_shape=2, date=date, concentration0=forget_rate_hyper[0], concentration1=forget_rate_hyper[1]
-            # )
+            forget_rate = numpyro_config_sample(
+                "forget_rate",
+                target_shape=3, date=date, concentration0=forget_rate_hyper[0], concentration1=forget_rate_hyper[1]
+            )
             learning_rate = numpyro_config_sample(
                 "learning_rate",
                 target_shape=3, date=date, scale=1
@@ -349,10 +349,10 @@ def generate_hierarchical_mechanistic_model(config):
             )
             perseverance_learning_rate = numpyro.deterministic(f"{date}_perseverance_learning_rate_scaled", perseverance_learning_rate * perseverance_learning_rate_hyper)
 
-            perseverance_weight = numpyro_config_sample(
-                "perseverance_weight",
-                target_shape=3, date=date
-            )
+#             perseverance_weight = numpyro_config_sample(
+#                 "perseverance_weight",
+#                 target_shape=3, date=date
+#             )
             lapse_prob = numpyro_config_sample(
                 "lapse_prob",
                 target_shape=3,
@@ -375,7 +375,7 @@ def generate_hierarchical_mechanistic_model(config):
                 stage_curr, switch, x_curr, y_curr = xs
                 weight_with_offset = numpyro.deterministic(f"{date}_stimulated_weights", init_weight + weight_prev)
                 utility = x_curr[0] * weight_with_offset[0] + x_curr[1] * weight_with_offset[1] + weight_with_offset[2]
-                probs = numpyro.deterministic(f"{date}_probs_given_stimulus", jax.nn.sigmoid(utility + perseverance_curr))
+                probs = numpyro.deterministic(f"{date}_probs_given_stimulus", jax.nn.sigmoid(utility + repetition_kernel[stage_curr] * perseverance_curr))
 #                 perseverance_curr = (
 #                     (1-forget_rate) * perseverance_prev + forget_rate * repetition_kernel[stage_curr,0] * x_prev[0] + repetition_kernel[stage_curr,1] * x_prev[1]
 #                 )         
@@ -397,7 +397,7 @@ def generate_hierarchical_mechanistic_model(config):
                     f"{date}_AR(1) with learning",
                     weight_prev - learning_rate[stage_curr] * delta) #TODO: Maybe weigh this update with perseverance_weight?
                 perseverance_next = (
-                    (1-forget_rate) * perseverance_curr + forget_rate * obs * true_utility * perseverance_learning_rate[stage_curr]
+                    (1-forget_rate[stage_curr]) * perseverance_curr + forget_rate[stage_curr] * obs * true_utility * perseverance_learning_rate[stage_curr]
                 )
                 return (new_weights, x_curr, perseverance_next, true_utility, obs), (obs)
 
