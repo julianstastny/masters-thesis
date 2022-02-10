@@ -217,7 +217,8 @@ def generate_hierarchical_mechanistic_model(config):
 #             loc=0.0,
 #             scale=1.0,
 #         )
-        global_intecept = numpyro.sample("global_intecept", dist.Normal(0,1))
+        # global_intercept = numpyro.sample("global_intercept_mean", dist.Normal(0,1))
+        global_intercept = 0
         true_weight_hyper_mean = numpyro_sample(
             "true_weight_hyper_mean",
             dist.Normal,
@@ -253,14 +254,14 @@ def generate_hierarchical_mechanistic_model(config):
 #             "perseverance_growth_rate_hyper_scale",
 #             target_shape=(3, 2),
 #         )
-        forget_rate_pers_hyper = numpyro_config_sample(
-            "forget_rate_pers_hyper",
-            target_shape=2,
-        )
-        forget_rate_offer_hyper = numpyro_config_sample(
-            "forget_rate_offer_hyper",
-            target_shape=2,
-        )
+        # forget_rate_pers_hyper = numpyro_config_sample(
+        #     "forget_rate_pers_hyper",
+        #     target_shape=2,
+        # )
+        # forget_rate_offer_hyper = numpyro_config_sample(
+        #     "forget_rate_offer_hyper",
+        #     target_shape=2,
+        # )
 #         forget_rate_pers = numpyro_config_sample(
 #             "forget_rate_pers",
 #             target_shape=3,
@@ -352,14 +353,14 @@ def generate_hierarchical_mechanistic_model(config):
             # perseverance_growth_rate = numpyro.deterministic(f"{date}_perseverance_growth_rate_scaled", perseverance_growth_rate * perseverance_growth_rate_hyper_scale)
 #             perseverance_growth_rate = numpyro.deterministic(f"{date}_perseverance_growth_rate_scaled", perseverance_growth_rate_hyper_scale)
             switch_indicator = generate_switch_indicator(stage)
-            forget_rate_pers = numpyro_config_sample(
-                "forget_rate_pers",
-                target_shape=3, date=date, concentration0=forget_rate_pers_hyper[0], concentration1=forget_rate_pers_hyper[1]
-            )
-            forget_rate_offer = numpyro_config_sample(
-                "forget_rate_offer",
-                target_shape=3, date=date, concentration0=forget_rate_offer_hyper[0], concentration1=forget_rate_offer_hyper[1]
-            )
+            # forget_rate_pers = numpyro_config_sample(
+            #     "forget_rate_pers",
+            #     target_shape=3, date=date, concentration0=forget_rate_pers_hyper[0], concentration1=forget_rate_pers_hyper[1]
+            # )
+            # forget_rate_offer = numpyro_config_sample(
+            #     "forget_rate_offer",
+            #     target_shape=3, date=date, concentration0=forget_rate_offer_hyper[0], concentration1=forget_rate_offer_hyper[1]
+            # )
             learning_rate = numpyro_config_sample(
                 "learning_rate",
                 target_shape=3, date=date, scale=1
@@ -386,6 +387,10 @@ def generate_hierarchical_mechanistic_model(config):
                 date=date
             )
             perseverance_init = numpyro.sample(f"{date}_perseverance_init", dist.Normal(0,1))
+
+            local_intercept = numpyro.sample(f"{date}_local_intercept", dist.Normal(0,1))
+
+            intercept = numpyro.deterministic(f"{date}_net_intercept", global_intercept + local_intercept)
 #             rtm = numpyro_config_sample(
 #                 "rtm",
 #                 target_shape=3,
@@ -396,7 +401,7 @@ def generate_hierarchical_mechanistic_model(config):
                 weight_prev, x_prev, perseverance_curr, true_utility_prev, y_prev = carry
                 stage_curr, switch, x_curr, y_curr = xs
                 weight_with_offset = numpyro.deterministic(f"{date}_stimulated_weights", init_weight + weight_prev)
-                utility = x_curr[0] * weight_with_offset[0] + x_curr[1] * weight_with_offset[1] + global_intecept
+                utility = numpyro.deterministic(f"{date}_predicted_utility", x_curr[0] * weight_with_offset[0] + x_curr[1] * weight_with_offset[1] + intercept)
                 probs = numpyro.deterministic(f"{date}_probs_given_stimulus", jax.nn.sigmoid(utility + repetition_kernel[stage_curr] * perseverance_curr))
 #                 perseverance_curr = (
 #                     (1-forget_rate_pers) * perseverance_prev + forget_rate_pers * repetition_kernel[stage_curr,0] * x_prev[0] + repetition_kernel[stage_curr,1] * x_prev[1]
@@ -413,16 +418,17 @@ def generate_hierarchical_mechanistic_model(config):
                     f"{date}_y", dist.Bernoulli(probs=clamp_probs(probs)), obs=y_curr
                 )
                 # ====Mechanistic part====
-                true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + global_intecept
+                true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + intercept
                 delta = numpyro.deterministic(f"{date}_delta", (true_utility - utility) * x_curr * obs) # * obs because this update can only happen if approach happened
                 new_weights = numpyro.deterministic(
                     f"{date}_AR(1) with learning",
-                    (1-forget_rate_offer[stage_curr]) * weight_prev + learning_rate[stage_curr] * delta) #TODO: Maybe weigh this update with perseverance_weight?
+                    weight_prev + learning_rate[stage_curr] * delta) #TODO: Maybe weigh this update with perseverance_weight?
                 # perseverance_next = (
                 #     (1-forget_rate_pers[stage_curr]) * perseverance_curr + forget_rate_pers[stage_curr] * obs * (true_utility - bp * utility) * perseverance_learning_rate[stage_curr]
                 # )
-                perseverance_next = (
-                    (1-forget_rate_pers[stage_curr]) * perseverance_curr + obs * (true_utility - bp * utility) * perseverance_learning_rate[stage_curr]
+                perseverance_next = numpyro.deterministic(
+                    f"{date}_perseverance_base",
+                    perseverance_curr + obs * (true_utility - bp * utility) * perseverance_learning_rate[stage_curr]
                 )
                 return (new_weights, x_curr, perseverance_next, true_utility, obs), (obs)
 
