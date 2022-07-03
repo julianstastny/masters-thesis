@@ -470,6 +470,35 @@ config_mechanistic = {
 }
 
 
+config_mechanistic_simpler = {
+    "learning_rate": {
+        "shape": (1,),
+        "dist_type": dist.HalfNormal,
+        "params": {'scale': 1.0},
+    },
+#     "bias_learning_rate": {
+#         "shape": (3,),
+#         "dist_type": dist.HalfNormal,
+#         "params": {'scale': 0.1},
+#     },
+    "lapse_prob": {
+        "shape": (1,),
+        "dist_type": dist.Beta,
+        "params": {"concentration0": 10.0, "concentration1": 1.0},
+    },
+    "approach_given_lapse": {
+        "shape": (1,),
+        "dist_type": dist.Uniform,
+        "params": {"low": 0.0, "high": 1.0},
+    },
+    "mean_reversion": {
+        "shape": (1,),
+        "dist_type": dist.Beta,
+        "params": {"concentration0": 1.0, "concentration1": 1.0},
+    },
+    "baselined_pers": True
+}
+
 def generate_mechanistic_model(config):
 #     switch_scale = config['switch_scale']
 
@@ -543,9 +572,9 @@ def generate_mechanistic_model(config):
 #         intercept = numpyro.deterministic(f"net_intercept", global_intercept + local_intercept)
 
         def transition(carry, xs):
-            weight_prev, x_prev, bias_curr, true_utility_prev, y_prev = carry
+            weight_prev, x_prev, bias_curr, true_utility_prev, y_prev, offset = carry
             stage_curr, switch, x_curr, y_curr = xs
-            weight_with_offset = numpyro.deterministic(f"stimulated_weights", init_weight + weight_prev)
+            weight_with_offset = numpyro.deterministic(f"stimulated_weights", offset + weight_prev)
             utility = numpyro.deterministic(f"predicted_utility", x_curr[0] * weight_with_offset[0] + x_curr[1] * weight_with_offset[1] + weight_with_offset[2])
 #             bias_weighted = numpyro.deterministic(f"bias_weighted", repetition_kernel[stage_curr] * bias_curr)
 #             weighted_utility = numpyro.deterministic(f"weighted_utility", utility + bias_weighted)
@@ -558,7 +587,7 @@ def generate_mechanistic_model(config):
                 f"y", dist.Bernoulli(probs=clamp_probs(probs)), obs=y_curr
             )
             # ====Mechanistic part====
-            true_utility = x_curr[0] * true_weight_nostim[stage_curr][0] + x_curr[1] * true_weight_nostim[stage_curr][1] + true_weight_nostim[stage_curr][2]
+            true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + true_weight_mean[stage_curr][2]
             delta = numpyro.deterministic(f"delta", (true_utility - utility) * x_curr * obs) # * obs because this update can only happen if approach happened
             new_weights = numpyro.deterministic(
                 f"AR(1) with learning",
@@ -569,11 +598,12 @@ def generate_mechanistic_model(config):
 #                 bias_curr + obs * (true_utility - bp * weighted_utility) * bias_learning_rate[stage_curr]
 #             )
             bias_next = bias_init
-            return (new_weights, x_curr, bias_next, true_utility, obs), (obs)
+            offset = (1 - mean_reversion[stage_curr]) * offset
+            return (new_weights, x_curr, bias_next, true_utility, obs, offset), (obs)
 
         _, (obs) = scan(
             transition,
-            (np.zeros(3), np.zeros(3), bias_init, 0.0, -1),
+            (np.zeros(3), np.zeros(3), bias_init, 0.0, -1, init_weight),
             (stage, switch_indicator, X, y),
             length=len(X),
         )
@@ -706,7 +736,7 @@ def generate_mechanistic_perseveration_model(config):
                 f"y", dist.Bernoulli(probs=clamp_probs(probs)), obs=y_curr
             )
             # ====Mechanistic part====
-            true_utility = x_curr[0] * true_weight_nostim[stage_curr][0] + x_curr[1] * true_weight_nostim[stage_curr][1] + true_weight_nostim[stage_curr][2]
+            true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + true_weight_mean[stage_curr][2]
 #             error = true_utility - utility_with_bias
             error = true_utility - utility
             delta = numpyro.deterministic(f"delta", error * x_curr * obs) # * obs because this update can only happen if approach happened
@@ -891,7 +921,7 @@ def generate_mechanistic_model_with_descriptive_perseveration(config):
                 f"y", dist.Bernoulli(probs=clamp_probs(probs)), obs=y_curr
             )
             # ====Mechanistic part====
-            true_utility = x_curr[0] * true_weight_nostim[stage_curr][0] + x_curr[1] * true_weight_nostim[stage_curr][1] + true_weight_nostim[stage_curr][2]
+            true_utility = x_curr[0] * true_weight_mean[stage_curr][0] + x_curr[1] * true_weight_mean[stage_curr][1] + true_weight_mean[stage_curr][2]
             delta = numpyro.deterministic(f"delta", (true_utility - utility) * x_curr * obs) # * obs because this update can only happen if approach happened
             new_weights = numpyro.deterministic(
                 f"AR(1) with learning",
